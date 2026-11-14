@@ -1,0 +1,50 @@
+[
+  {
+    "id": "monster-johan",
+    "title": "Monster — Johan Liebert",
+    "filename": "monster-johan-liebert.jpg",
+    "url": "https://images4.alphacoders.com/125/1250440.jpg",
+    "source": "https://wall.alphacoders.com/big.php?i=1250440",
+    "expected_width": 5998,
+    "expected_height": 3374,
+    "minimum_width": 3840,
+    "minimum_height": 2160,
+    "rights": "Private, personal wallpaper use. Artwork belongs to its creator."
+  },
+  {
+    "id": "mushoku-tensei",
+    "title": "Mushoku Tensei — Jobless Reincarnation",
+    "filename": "mushoku-tensei.jpg",
+    "url": "https://4kwallpapers.com/images/wallpapers/mushoku-tensei-3840x2160-23239.jpg",
+    "source": "https://4kwallpapers.com/anime/mushoku-tensei-23239.html",
+    "expected_width": 3840,
+    "expected_height": 2160,
+    "minimum_width": 3840,
+    "minimum_height": 2160,
+    "rights": "Artwork belongs to its respective creators."
+  },
+  {
+    "id": "naruto-rasengan",
+    "title": "Naruto — Rasengan",
+    "filename": "naruto-rasengan.png",
+    "url": "https://4kwallpapers.com/images/wallpapers/naruto-uzumaki-3840x2160-23641.png",
+    "source": "https://4kwallpapers.com/anime/naruto-uzumaki-23641.html",
+    "expected_width": 3840,
+    "expected_height": 2160,
+    "minimum_width": 3840,
+    "minimum_height": 2160,
+    "rights": "Artwork belongs to its respective creators."
+  },
+  {
+    "id": "orb-rafal",
+    "title": "Orb: On the Movements of the Earth — Rafal",
+    "filename": "orb-rafal.png",
+    "url": "https://images8.alphacoders.com/140/1406285.png",
+    "source": "https://wall.alphacoders.com/big.php?i=1406285",
+    "expected_width": 5504,
+    "expected_height": 3072,
+    "minimum_width": 3840,
+    "minimum_height": 2160,
+    "rights": "Private, personal wallpaper use. Artwork belongs to its creator."
+  }
+]

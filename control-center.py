@@ -15,6 +15,8 @@ from preferences import ROOT,WIDGETS,ACCENTS,load,update,effective_accent
 import studio_backend as backend
 from wallpaper_collection import collection_paths,import_image
 from wallpaper_palette import from_image
+from wallpaper_selection import ClickApply
+import anime_pack
 from live_logtime import live_hours,format_hours
 from native_wallpaper import NativeWallpaper
 
@@ -30,6 +32,8 @@ window {background:#131018;color:#eee5ee;}
 .panel {background:#211b28;border:1px solid #3b2f42;border-radius:16px;padding:20px;}
 .wall-tile {background:#211b28;border:1px solid #3b2f42;border-radius:12px;padding:8px;}
 .wall-tile:hover {border-color:#dda3c8;}
+.wall-tile.selected {border-color:#dba5c9;}
+.wall-tile.applied {box-shadow:inset 0 0 0 2px #dba5c9;}
 .accent-button {background:#dba5c9;color:#231725;font-weight:600;}
 .number {font-size:48px;font-weight:300;color:#e5b1d5;}
 .preview {border-radius:16px;background:#0b0910;}
@@ -50,7 +54,8 @@ def button(text,callback,css=None):
 class Studio(Adw.ApplicationWindow):
  def __init__(self,app):
   super().__init__(application=app,title='Neon Studio',default_width=1120,default_height=820)
-  self.snapshot=None;self.snapshot_stale=False;self.busy=False;self.closed=False;self.sources=[];self.selected=None;self.bindings={};self.widget_switches={}
+  self.snapshot=None;self.snapshot_stale=False;self.busy=False;self.closed=False;self.sources=[];self.selected=None;self.bindings={};self.widget_switches={};self.wallpaper_tiles={};self.pack_busy=False
+  self.selection_queue=ClickApply(GLib,self.apply_from_gallery)
   self.connect('close-request',self.on_close)
   backend.backup_preferences()
   provider=Gtk.CssProvider();provider.load_from_data(CSS)
@@ -70,7 +75,7 @@ class Studio(Adw.ApplicationWindow):
   sidebar.append(button('Stop desktop cards',lambda _:self.action(backend.stop_widgets)))
   body.append(self.stack)
   self.make_wallpapers();self.make_appearance();self.make_widgets();self.make_logtime();self.make_tools()
-  self.tick();self.fetch_logtime()
+  self.tick();self.fetch_logtime();self.start_anime_downloads()
   self.sources.append(GLib.timeout_add_seconds(1,self.tick))
   self.sources.append(GLib.timeout_add_seconds(300,self.fetch_logtime))
  def page(self,name,title,subtitle):
@@ -103,17 +108,22 @@ class Studio(Adw.ApplicationWindow):
   self.row(parent,title,control)
   self.bindings[key]=(control,'slider',multiplier)
  def make_wallpapers(self):
-  page=self.page('wallpapers','Wallpapers','A quiet backdrop. A different mood. Original landscapes, ten 4K anime wallpapers, and your own imports.')
+  page=self.page('wallpapers','Wallpapers','A quiet backdrop. A different mood. Click any wallpaper to apply it. Your widgets follow its colors automatically.')
   hero=self.panel(page)
   self.preview=Gtk.Picture(can_shrink=True,keep_aspect_ratio=True,height_request=260);self.preview.add_css_class('preview');hero.append(self.preview)
   self.wall_title=label('Choose a scene','brand');hero.append(self.wall_title)
   self.wall_info=label('3840 × 2160 · original collection','muted');hero.append(self.wall_info)
   actions=Gtk.Box(spacing=10);hero.append(actions)
-  self.apply_button=button('Apply wallpaper',lambda _:self.action(self.apply_wallpaper),'accent-button');actions.append(self.apply_button)
+  self.apply_button=button('Reapply selected',lambda _:self.action(self.apply_wallpaper),'accent-button');actions.append(self.apply_button)
   actions.append(button('Match widget accent',lambda _:self.match_accent()))
   actions.append(button('Open image…',lambda _:self.choose(False)))
   self.import_button=button('Add to collection…',lambda _:self.add_to_collection(),'accent-button')
   hero.append(self.import_button)
+  pack=self.panel(page,'NEW ANIME SERIES')
+  self.pack_status=label('Monster · Mushoku Tensei · Naruto · Orb — checking downloads…','muted');pack.append(self.pack_status)
+  self.pack_button=button('Download / retry missing wallpapers',lambda _:self.start_anime_downloads());pack.append(self.pack_button)
+  for entry in anime_pack.entries():
+   pack.append(button('Source · '+entry['title'],lambda _,url=entry['source']:Gtk.show_uri(self,url,Gdk.CURRENT_TIME)))
   self.bg=NativeWallpaper()
   self.wall_status=label('','status');page.append(self.wall_status)
   folders=Gtk.Box(spacing=10);page.append(folders)
@@ -126,6 +136,7 @@ class Studio(Adw.ApplicationWindow):
   pix=GdkPixbuf.Pixbuf.new_from_file_at_scale(str(path),width,height,True)
   return Gdk.Texture.new_for_pixbuf(pix)
  def fill_gallery(self):
+  self.wallpaper_tiles={}
   child=self.gallery.get_first_child()
   while child:
    following=child.get_next_sibling();self.gallery.remove(child);child=following
@@ -138,18 +149,25 @@ class Studio(Adw.ApplicationWindow):
     import re
     title=label(re.sub(r'^(?:anime-)?\d{2}-','',path.stem).replace('-',' ').title())
     title.set_ellipsize(3);title.set_max_width_chars(24);box.append(title)
-    tile=Gtk.Button(child=box);tile.add_css_class('wall-tile');tile.connect('clicked',lambda _,chosen=path:self.select(chosen));self.gallery.insert(tile,-1)
+    tile=Gtk.Button(child=box);tile.add_css_class('wall-tile');tile.connect('clicked',lambda _,chosen=path:self.select(chosen,apply=True));self.gallery.insert(tile,-1);self.wallpaper_tiles[str(path.resolve())]=tile
+    if str(path.resolve())==load()['active_wallpaper']:tile.add_css_class('applied')
    except GLib.Error:continue
   if paths:
-   if self.selected not in paths:self.select(paths[0])
+   active=Path(load()['active_wallpaper']) if load()['active_wallpaper'] else None
+   if self.selected not in paths:self.select(active if active in paths else paths[0])
   else:self.gallery.insert(label('No readable images found. Choose another folder.'),-1)
- def select(self,path):
+ def select(self,path,apply=False):
+  path=Path(path)
   try:
    self.preview.set_paintable(self.texture(path,1000,560));self.selected=path
    import re
    self.wall_title.set_text(re.sub(r'^(?:anime-)?\d{2}-','',path.stem).replace('-',' ').title())
    info=GdkPixbuf.Pixbuf.get_file_info(str(path))
    if info and info[0]:self.wall_info.set_text(f'{info[1]} × {info[2]} · '+('4K' if info[1]>=3840 and info[2]>=2160 else 'Image'))
+   for key,tile in self.wallpaper_tiles.items():
+    if key==str(path.resolve()):tile.add_css_class('selected')
+    else:tile.remove_css_class('selected')
+   if apply:self.selection_queue.clicked(path)
   except GLib.Error as error:self.notify('Could not open image: '+str(error))
  def choose(self,folder):
   chooser=Gtk.FileChooserNative.new('Choose wallpaper folder' if folder else 'Choose an image',self,Gtk.FileChooserAction.SELECT_FOLDER if folder else Gtk.FileChooserAction.OPEN,'Choose','Cancel')
@@ -191,10 +209,37 @@ class Studio(Adw.ApplicationWindow):
   if added:self.select(added[-1]);self.notify(f'{len(added)} wallpaper(s) ready in your collection.')
   if errors:self.notify('Some files could not be added: '+errors[0])
   return GLib.SOURCE_REMOVE
+ def apply_from_gallery(self,path):
+  if not self.closed:self.action(lambda:self.apply_wallpaper(path))
+ def start_anime_downloads(self):
+  if self.pack_busy or self.closed:return
+  self.pack_busy=True;self.pack_button.set_sensitive(False)
+  self.pack_status.set_text('Downloading missing anime wallpapers in the background…')
+  def progress(item,path,error):GLib.idle_add(self.anime_progress,item,path,error)
+  def worker():
+   try:available,errors=anime_pack.download_pack(progress=progress)
+   except Exception as error:available=[];errors=[('Anime pack',str(error))]
+   GLib.idle_add(self.anime_finished,available,errors)
+  threading.Thread(target=worker,daemon=True).start()
+ def anime_progress(self,item,path,error):
+  if self.closed:return GLib.SOURCE_REMOVE
+  if path:
+   self.pack_status.set_text('Ready · '+item['title']);self.fill_gallery()
+  else:
+   self.pack_status.set_text('Could not download '+item['title']+' · retry or open its source.')
+   print('Anime download failed: '+item['title']+': '+str(error),flush=True)
+  return GLib.SOURCE_REMOVE
+ def anime_finished(self,available,errors):
+  self.pack_busy=False
+  if self.closed:return GLib.SOURCE_REMOVE
+  self.pack_button.set_sensitive(True);self.fill_gallery()
+  self.pack_status.set_text(f'{len(available)}/4 series wallpapers ready.'+(' Some downloads failed. Retry or use the source links above.' if errors else ' Click one in the gallery to apply it.'))
+  return GLib.SOURCE_REMOVE
  def wallpaper_writable(self):return all(self.bg.is_writable(key) for key in ('picture-uri','picture-uri-dark'))
- def apply_wallpaper(self):
-  if not self.selected:return
-  if not self.selected.is_file():self.notify('That image was moved or deleted. Refresh the collection.');return
+ def apply_wallpaper(self,path=None):
+  path=Path(path) if path is not None else self.selected
+  if path is None:return
+  if not path.is_file():self.notify('That image was moved or deleted. Refresh the collection.');return
   if not self.wallpaper_writable():self.notify('GNOME has locked wallpaper changes for this session.');return
   backup=ROOT/'state/wallpaper-before.json'
   if not backup.exists():backup.write_text(json.dumps({key:(self.bg.get_original(key) if hasattr(self.bg,'get_original') else self.bg.get_string(key)) for key in ('picture-uri','picture-uri-dark','picture-options')}))
@@ -203,14 +248,17 @@ class Studio(Adw.ApplicationWindow):
   done=[]
   try:
    for key in old:
-    if not self.bg.set_string(key,self.selected.resolve().as_uri()):raise RuntimeError('GNOME rejected the wallpaper change.')
+    if not self.bg.set_string(key,path.resolve().as_uri()):raise RuntimeError('GNOME rejected the wallpaper change.')
     done.append(key)
    if self.bg.is_writable('picture-options'):self.bg.set_string('picture-options','zoom')
    Gio.Settings.sync()
-   update({'active_wallpaper':str(self.selected.resolve())})
-   if load()['auto_accent']:self.match_accent(silent=True)
+   update({'active_wallpaper':str(path.resolve())})
+   if load()['auto_accent']:self.match_accent(silent=True,path=path)
    if getattr(self.bg,'pending_login',False):self.notify('Wallpaper saved. Log out and back in once to activate your personal wallpaper profile.')
    else:self.notify('Wallpaper applied.')
+   for key,tile in getattr(self,'wallpaper_tiles',{}).items():
+    if key==str(path.resolve()):tile.add_css_class('applied')
+    else:tile.remove_css_class('applied')
   except RuntimeError as error:
    for key in done:
     try:self.bg.set_string(key,old[key])
@@ -377,6 +425,7 @@ class Studio(Adw.ApplicationWindow):
   return GLib.SOURCE_CONTINUE
  def on_close(self,*_):
   self.closed=True
+  self.selection_queue.close()
   for source in self.sources:GLib.source_remove(source)
   return False
 

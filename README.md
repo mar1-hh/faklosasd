@@ -93,7 +93,7 @@ Copying this file replaces your saved widget preferences. It includes the larger
 
 1. Open **Wallpapers** in Neon Studio.
 2. Select a scene or use **Open image…** / **Change folder…**.
-3. Click **Apply wallpaper**.
+3. Click the wallpaper thumbnail. It applies immediately; **Reapply selected** is only a fallback.
 4. If the app says the image was saved but the profile is pending, **log out and back in once**. Later wallpaper changes should be immediate.
 
 The one-time logout lets GNOME Shell load the personal dconf profile. The app never forcibly restarts Shell. A campus that permits the TrpStrata-style personal-profile setup is required for this mode.
@@ -207,6 +207,21 @@ Code and original assets are MIT licensed. The downloaded anime artwork belongs 
 
 ### Wallpaper colors and centered cards
 
-**Automatically match wallpaper** is enabled by default. Apply a wallpaper to extract its strongest meaningful hue: near-black backgrounds and transparent pixels are ignored, and neighboring hues are grouped rather than averaging unrelated colors together. That hue colors card numbers, headings, borders, progress, buttons and a dark tinted surface. The accent is adjusted for legibility. The current hex value is shown in Appearance. Choosing a fixed preset disables automatic matching; the switch or Match widget accent button turns it back on. Widget text and calendar/app-launcher content are centered within their cards.
+**Automatically match wallpaper** is enabled by default. Click a wallpaper to apply it and extract its strongest meaningful hue: near-black backgrounds and transparent pixels are ignored, and neighboring hues are grouped rather than averaging unrelated colors together. That hue colors card numbers, headings, borders, progress, buttons and a dark tinted surface. The accent is adjusted for legibility. The current hex value is shown in Appearance. Choosing a fixed preset disables automatic matching; the switch or Match widget accent button turns it back on. Widget text and calendar/app-launcher content are centered within their cards.
 
 All ten added anime wallpapers were checked from their actual file headers: eight are 3840×2160, one is 3840×2400, and one is 4500×2247. None was upscaled. Three downloaded WebP files were decoded to lossless PNG at their original dimensions for compatibility with this workstation’s image loaders. The original six landscapes remain included.
+
+
+### Monster, Mushoku Tensei, Naruto and Orb pack
+
+The app now downloads one sourced wallpaper for each requested series in the background when it opens: **Monster (Johan Liebert)**, **Mushoku Tensei: Jobless Reincarnation**, **Naruto (Rasengan)**, and **Orb: On the Movements of the Earth (Rafal)**. Their original pages and advertised dimensions are listed in [wallpapers/ANIME_PACK.json](wallpapers/ANIME_PACK.json).
+
+These four files are fetched into the private, Git-ignored `state/wallpapers/` collection on your own machine. They are not falsely represented as already bundled downloads. The app validates the returned image, decodes it, and verifies at least 3840×2160 before adding it. It does not upscale a smaller preview or save an HTML error as an image. Completed files are cached; unavailable sources have retry and source-page controls on the Wallpapers page. You can also run `/usr/bin/python3 anime_pack.py` from the checkout to download without opening the control panel.
+
+The tool session used to prepare this update cannot directly download from those image hosts, so live download availability still needs checking in your desktop session. Ordinary app operations stay responsive while the pack downloads. No login details, cookies, privileged commands, or Wallpaper Engine installation are needed.
+
+### One-click wallpaper selection and transparent calendar days
+
+Clicking a gallery thumbnail now applies that exact image and its automatic accent. Rapid clicks are debounced so the last choice wins. Startup/gallery refreshes only preview an image and never replace your background on their own. Selected/applied tiles have distinct outlines; failures retain the existing wallpaper and show an explanation. The one-time personal-profile login requirement is unchanged.
+
+The GTK calendar's day grid, header and selected-day background are transparent. The card surface remains, and selected dates use the current accent color rather than a filled rectangle. Restart the cards once to load the new styling.

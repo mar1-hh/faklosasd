@@ -10,6 +10,7 @@ import gi
 from preferences import load,update,ACCENTS,WIDGETS,effective_accent
 from widget_layout import positions as layout_positions
 from wallpaper_palette import tinted_surface
+from widget_styles import calendar_css
 gi.require_version('Gtk','3.0')
 from gi.repository import Gtk,Gdk,GLib
 ROOT=Path(__file__).resolve().parent
@@ -100,7 +101,7 @@ def apply():
  .desktop-widget progressbar progress {{background:{accent};}}
  '''
  restyle=previous is None or any(prefs[key]!=previous[key] for key in ('scale','accent','auto_accent','accent_color'))
- if restyle:css.load_from_data(style.encode())
+ if restyle:css.load_from_data((style+calendar_css(accent)).encode())
  for name,win in zip(names,windows):
   width=430 if name=='launcher' else 310 if name=='clock' else 265
   if previous is None or scale!=previous['scale']:
