@@ -17,5 +17,6 @@
     "notes": false,
     "launcher": false
   },
-  "positions": {}
+  "positions": {},
+  "keep_awake_enabled": true
 }

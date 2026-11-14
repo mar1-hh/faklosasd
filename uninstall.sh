@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+/usr/bin/python3 keep_awake.py disable
 /usr/bin/python3 -c 'from studio_backend import stop_widgets; print(stop_widgets())'
 gnome-extensions disable neon-desktop@local 2>/dev/null || true
 /usr/bin/python3 - <<'PYCODE'

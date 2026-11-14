@@ -24,7 +24,7 @@ cd faklosasd
 bash install.sh
 ```
 
-**No sudo is used.** The installer checks existing GTK libraries, chooses an existing Python interpreter with Requests, creates a user application launcher, starts the cards, and opens **Neon Studio**. It does not download system packages or edit your shell startup files.
+**No sudo is used.** The installer checks existing GTK libraries, chooses existing Python interpreters for Requests and the optional pynput helper, creates a user application launcher, starts the cards and enabled keep-awake helper, and opens **Neon Studio**. It does not download system packages or edit your shell startup files.
 
 After installation, search for **Neon Studio** in Applications, or run from the checkout:
 
@@ -34,7 +34,7 @@ bash open-studio.sh
 
 Keep the checkout in place: the launcher points to it. If you move it, rerun `bash install.sh` from its new location. Close the older app/cards before switching from an earlier `~/Desktop/neon-desktop` installation to this checkout.
 
-To install without starting anything:
+To install without starting anything now (the default-enabled keep-awake login entry is still registered):
 
 ```bash
 bash install.sh --no-start
@@ -51,7 +51,7 @@ Required on the machine:
 - GNOME's `gsettings`, user `systemctl`, and standard `pgrep` tools.
 - An active GNOME Shell user service for personal-profile wallpaper changes.
 
-The campus workstation used for development already had the GTK prerequisites. The installer reports missing libraries instead of attempting a privileged installation.
+The campus workstation used for development already had the GTK prerequisites. The installer reports missing libraries instead of attempting a privileged installation. Keep awake requires a Python interpreter with `pynput`; its interpreter is selected separately from the GUI and logtime interpreter.
 
 If only Requests is missing, use a local virtual environment:
 
@@ -73,7 +73,7 @@ Closing the control panel leaves the desktop cards running. Browser and app laun
 
 ### Start at login
 
-Enable **Widgets → Start cards when I log in**. Installation does not enable login startup automatically. Disable the same switch to stop future automatic launches.
+Enable **Widgets → Start cards when I log in**. Card login startup is opt-in. The separate **Keep awake at login** feature is enabled by default. Disable the same switch to stop future automatic launches.
 
 ### Use the appearance settings from this setup
 
@@ -225,3 +225,28 @@ The tool session used to prepare this update cannot directly download from those
 Clicking a gallery thumbnail now applies that exact image and its automatic accent. Rapid clicks are debounced so the last choice wins. Startup/gallery refreshes only preview an image and never replace your background on their own. Selected/applied tiles have distinct outlines; failures retain the existing wallpaper and show an explanation. The one-time personal-profile login requirement is unchanged.
 
 The GTK calendar's day grid, header and selected-day background are transparent. The card surface remains, and selected dates use the current accent color rather than a filled rectangle. Restart the cards once to load the new styling.
+
+
+## Keep awake — built-in sc.py feature
+
+The app now bundles the behavior of your supplied `sc.py`. **Widgets → Keep awake at login** is **on by default** for new and existing settings that have no saved choice. Its original behavior is preserved: a brief Shift press/release every 30 seconds for up to 60 minutes per login. Those events go to the focused application, as in the original script.
+
+Run `bash install.sh` once after updating. The installer finds a Python with `pynput`, pins its absolute path in the Git-ignored `keep-awake-python` symlink, and adds `~/.config/autostart/neon-keep-awake.desktop` with zero added login delay. Normal installation starts a run now; `--no-start` registers it for the next login without starting it now. The helper is independent of whether the cards themselves start at login.
+
+Turning the switch **off** stops the current helper, releases Shift as cleanup, and removes its login entry. Turning it **on** starts a new 60-minute run and enables future login startup. Your off choice survives updates and reinstalling. Closing Neon Studio or stopping the desktop cards leaves this separate helper running until its duration expires; use its own switch to stop it. Its status label distinguishes running, off, completed and dependency errors.
+
+No duplicate helper instances are allowed. If you installed the earlier standalone `sc-login` startup entry, the app installer backs up and replaces only that marked entry, stopping the known old Desktop script before starting the bundled version. Your original `~/Desktop/sc.py` is left unchanged, and the app no longer depends on that external file.
+
+If no installed interpreter contains pynput, the rest of the app still installs and reports the missing keep-awake dependency. Install it into your own virtual environment if needed:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt -r requirements-keep-awake.txt
+NEON_LOGTIME_PYTHON="$PWD/.venv/bin/python" NEON_KEEP_AWAKE_PYTHON="$PWD/.venv/bin/python" bash install.sh
+```
+
+The helper uses pynput's X11 keyboard backend on the target campus desktop; Wayland may restrict synthetic keyboard events. It does not change system power/lock policies or use sudo.
+
+Logs and status remain private in `state/keep-awake.log`, `state/keep-awake-status.json`, and `state/keep-awake.pid`. The helper checks the enabled preference at least once per second and handles termination with a best-effort Shift release. `uninstall.sh` stops it and removes only its owned login entry.
+
+Regression tests use a fake keyboard/controller and clock; they never send actual key events.

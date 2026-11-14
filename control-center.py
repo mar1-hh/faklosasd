@@ -13,6 +13,7 @@ gi.require_version('GdkPixbuf','2.0')
 from gi.repository import Gtk,Adw,Gdk,GdkPixbuf,Gio,GLib
 from preferences import ROOT,WIDGETS,ACCENTS,load,update,effective_accent
 import studio_backend as backend
+import keep_awake
 from wallpaper_collection import collection_paths,import_image
 from wallpaper_palette import from_image
 from wallpaper_selection import ClickApply
@@ -317,10 +318,23 @@ class Studio(Adw.ApplicationWindow):
   arrange.append(button('Reset card positions',lambda _:self.action(lambda:(update({'positions':{}}),'Card positions reset.')[1])))
   self.autostart=Gtk.Switch(active=backend.autostart_enabled());self.autostart.connect('notify::active',self.autostart_changed)
   self.row(arrange,'Start cards when I log in',self.autostart)
+  awake=self.panel(page,'KEEP AWAKE')
+  self.keep_awake_switch=Gtk.Switch(active=load()['keep_awake_enabled'])
+  self.keep_awake_switch.connect('notify::active',self.keep_awake_changed)
+  self.row(awake,'Keep awake at login',self.keep_awake_switch,'Runs sc.py in the background: Shift every 30 seconds, for 60 minutes per login.')
+  self.keep_awake_status=label(keep_awake.status_text(),'muted');awake.append(self.keep_awake_status)
+  awake.append(label('Turning this off stops the current run and disables it for future logins. Closing Neon Studio does not stop it.','muted'))
   notes=self.panel(page,'YOUR NOTE')
   self.note_buffer=Gtk.TextBuffer();self.note_buffer.set_text(load()['notes'])
   editor=Gtk.TextView(buffer=self.note_buffer,wrap_mode=Gtk.WrapMode.WORD_CHAR,height_request=120,top_margin=10,bottom_margin=10,left_margin=10,right_margin=10)
   notes.append(editor);notes.append(button('Save note',lambda _:self.save_note(),'accent-button'))
+ def keep_awake_changed(self,control,_):
+  try:self.notify(keep_awake.set_enabled(control.get_active()))
+  except (OSError,RuntimeError) as error:
+   self.notify(str(error))
+   actual=load()['keep_awake_enabled']
+   if control.get_active()!=actual:
+    control.handler_block_by_func(self.keep_awake_changed);control.set_active(actual);control.handler_unblock_by_func(self.keep_awake_changed)
  def autostart_changed(self,control,_):
   enabled=control.get_active()
   try:backend.set_autostart(enabled);self.notify('Login startup '+('enabled.' if enabled else 'disabled.'))
@@ -381,6 +395,7 @@ class Studio(Adw.ApplicationWindow):
  def restore_widgets(self):
   try:
    message=backend.restore_preferences();prefs=load()
+   keep_awake.set_enabled(prefs['keep_awake_enabled'])
    for key,(control,kind,multiplier) in self.bindings.items():
     if kind=='switch':
      if key=='auto_accent':control.handler_block_by_func(self.auto_color_changed)
@@ -414,7 +429,11 @@ class Studio(Adw.ApplicationWindow):
   self.diagnostics.set_text('\n'.join(lines))
  def tick(self):
   if self.closed:return GLib.SOURCE_REMOVE
-  prefs=load();self.accent_readout.set_text(('Wallpaper dominant color · ' if prefs['auto_accent'] else 'Fixed accent · ')+effective_accent(prefs))
+  self.keep_awake_status.set_text(keep_awake.status_text())
+  prefs=load()
+  if self.keep_awake_switch.get_active()!=prefs['keep_awake_enabled']:
+   self.keep_awake_switch.handler_block_by_func(self.keep_awake_changed);self.keep_awake_switch.set_active(prefs['keep_awake_enabled']);self.keep_awake_switch.handler_unblock_by_func(self.keep_awake_changed)
+  self.accent_readout.set_text(('Wallpaper dominant color · ' if prefs['auto_accent'] else 'Fixed accent · ')+effective_accent(prefs))
   running=bool(backend.widget_pids());self.running_label.set_text('● Desktop cards running' if running else '○ Desktop cards stopped')
   writable=self.wallpaper_writable();self.apply_button.set_sensitive(writable and self.selected is not None)
   self.wall_status.set_text(self.bg.status_text() if writable else (self.bg.last_error or 'The personal wallpaper profile could not be prepared. See Tools → Diagnostics.'))

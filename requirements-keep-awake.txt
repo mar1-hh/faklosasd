@@ -1,0 +1,2 @@
+# Optional interpreter dependency for the default-enabled personal sc.py feature.
+pynput>=1.7,<2
