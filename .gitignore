@@ -1,0 +1,20 @@
+# Private runtime data and machine-specific interpreter link
+/state/*
+!/state/.gitkeep
+/python
+# Python environments and generated files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+# Local secrets and editor files
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+.DS_Store

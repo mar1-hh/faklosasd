@@ -1,0 +1,7 @@
+.neon-card { background-color: rgba(29,23,35,0.88); border: 1px solid rgba(202,145,183,0.5); border-radius: 18px; padding: 20px; color: #dfc9db; spacing: 12px; font-size: 13px; }
+.neon-heading { font-size: 10px; color: #ae869e; letter-spacing: 2px; }
+.neon-clock { font-size: 55px; font-weight: 300; color: #d7a2c5; }
+.neon-hours { font-size: 42px; font-weight: 300; color: #d7a2c5; }
+.neon-action { background-color: rgba(160,110,150,0.13); border: 1px solid rgba(202,145,183,0.2); border-radius: 12px; padding: 8px 14px; color: #eddfeb; }
+.neon-action:hover { background-color: rgba(190,120,170,0.35); }
+.neon-small { font-size: 11px; color: #bba4b4; }

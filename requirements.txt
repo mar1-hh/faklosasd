@@ -1,0 +1,2 @@
+# Logtime helper only. GTK 3/4, libadwaita and PyGObject are system prerequisites.
+requests>=2.25,<3
