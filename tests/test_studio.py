@@ -66,7 +66,7 @@ class StudioTests(unittest.TestCase):
  def fake_window(self,settings):
   image=self.root/'image.png';image.touch()
   win=SimpleNamespace(bg=settings,selected=image,messages=[])
-  win.notify=win.messages.append;win.wallpaper_writable=lambda:studio.Studio.wallpaper_writable(win)
+  win.notify=win.messages.append;win.match_accent=lambda silent=False:None;win.wallpaper_writable=lambda:studio.Studio.wallpaper_writable(win)
   return win
  def test_locked_wallpaper_does_not_write(self):
   win=self.fake_window(FakeSettings(locked=True))

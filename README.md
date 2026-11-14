@@ -1,8 +1,10 @@
 # Neon Studio
 
-A personal Linux desktop setup with a native settings app, seven desktop widgets, live 1337 logtime, and six original **3840 × 2160 wallpapers**. Inspired by [TrpStrata](https://github.com/MliliGenes/TrpStrata).
+A personal Linux desktop setup with a native settings app, seven desktop widgets, live 1337 logtime, and six original **3840 × 2160 wallpapers** plus **ten anime wallpapers at 4K or higher**. Inspired by [TrpStrata](https://github.com/MliliGenes/TrpStrata).
 
-![Six included 4K wallpapers](wallpapers-preview.jpg)
+![Six original 4K wallpapers](wallpapers-preview.jpg)
+
+![Ten included 4K anime wallpapers](anime-wallpapers-preview.jpg)
 
 ## Install and run
 
@@ -61,8 +63,8 @@ NEON_LOGTIME_PYTHON="$PWD/.venv/bin/python" bash install.sh
 
 ## Use the app
 
-- **Wallpapers:** browse the six 4K scenes, select your own folder or image, preview it, apply it, or match widget accents to the image. Custom images remain in their original locations.
-- **Appearance:** choose Rose, Violet, Teal, Amber or Blue; change widget size (80–180%), opacity, screen margin, and clock seconds. Changes save automatically.
+- **Wallpapers:** browse all 16 included scenes, select an additional folder, or use **Add to collection…** to import one or several images. Imports are copied into `state/wallpapers/`, stay in the gallery even if the originals are moved, and remain Git-ignored. Duplicate content is reused; conflicting filenames are kept as separate numbered files. **Open image…** is available for a temporary preview without importing.
+- **Appearance:** automatically match the applied wallpaper’s dominant meaningful hue, or choose a fixed Rose, Violet, Teal, Amber or Blue preset; change widget size (80–180%), opacity, screen margin, and clock seconds. Changes save automatically.
 - **Widgets:** toggle Logtime, Quick links, Clock, System monitor, Calendar, Notes and App launcher independently. Enable **Arrange widgets**, drag a card by its title/empty area, then disable Arrange to put cards behind normal windows. Notes are editable here.
 - **Logtime:** set your 1337 username and target, inspect the active period, or refresh the API reading.
 - **Tools:** start/stop cards, view diagnostics, restore saved widget/background settings, and disable the personal wallpaper setup.
@@ -183,10 +185,10 @@ native_wallpaper.py    Personal-profile setup, verification and undo
 logtime-widget.py      Adapter around the supplied tracker
 preferences.py         Validated preferences and atomic saves
 external_actions.py    Asynchronous website/application launching
-wallpapers/            Six 4K PNGs and editable SVG sources
+wallpapers/            16 wallpapers, original SVG sources and anime source manifest
 config.example.json    Portable example appearance settings
 tests/                 Headless regression tests
-state/                 Private settings, API cache, logs and backups (Git-ignored)
+state/                 Private imports, settings, API cache, logs and backups (Git-ignored)
 ```
 
 Legacy `extension/` and `configure.py` are retained for compatibility with the original prototype. Normal installation uses the standalone cards, not a GNOME extension.
@@ -200,4 +202,11 @@ bash -n install.sh restart-widgets.sh uninstall.sh open-studio.sh
 
 These check preferences, restore snapshots, wallpaper transactions and profile setup, missing optional apps, asynchronous launch failures/timeouts, live counting, widget placement, launchers and autostart ownership. Actual desktop rendering, browser launch and campus API behavior need verification in a graphical session.
 
-MIT licensed. See [LICENSE](LICENSE) and [THIRD_PARTY.md](THIRD_PARTY.md). No personal logs, API responses, saved wallpaper backups, account names, interpreter symlinks or absolute user paths are published.
+Code and original assets are MIT licensed. The downloaded anime artwork belongs to its respective creators; source URLs and actual dimensions are recorded in [wallpapers/SOURCES.json](wallpapers/SOURCES.json). See [LICENSE](LICENSE) and [THIRD_PARTY.md](THIRD_PARTY.md). No personal logs, API responses, saved wallpaper backups, account names, interpreter symlinks or absolute user paths are published.
+
+
+### Wallpaper colors and centered cards
+
+**Automatically match wallpaper** is enabled by default. Apply a wallpaper to extract its strongest meaningful hue: near-black backgrounds and transparent pixels are ignored, and neighboring hues are grouped rather than averaging unrelated colors together. That hue colors card numbers, headings, borders, progress, buttons and a dark tinted surface. The accent is adjusted for legibility. The current hex value is shown in Appearance. Choosing a fixed preset disables automatic matching; the switch or Match widget accent button turns it back on. Widget text and calendar/app-launcher content are centered within their cards.
+
+All ten added anime wallpapers were checked from their actual file headers: eight are 3840×2160, one is 3840×2400, and one is 4500×2247. None was upscaled. Three downloaded WebP files were decoded to lossless PNG at their original dimensions for compatibility with this workstation’s image loaders. The original six landscapes remain included.

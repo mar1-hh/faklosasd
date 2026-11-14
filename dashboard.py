@@ -44,6 +44,7 @@ class Dashboard(Gtk.Window):
   right=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=18); right.set_size_request(265,-1); layout.pack_start(right,False,False,0)
   log=self.card(left,'42 / LOGTIME')
   self.hours=self.label(log,'— h','hours'); self.bar=Gtk.ProgressBar(); log.pack_start(self.bar,False,False,0)
+  self.hours.set_halign(Gtk.Align.CENTER)
   self.period=self.label(log,'28th → 27th','small'); self.detail=self.label(log,'Target · 120 h','small')
   self.status=self.label(log,'Loading your logtime…','small')
   self.button(log,'Refresh',lambda _:self.refresh())
@@ -58,11 +59,11 @@ class Dashboard(Gtk.Window):
   self.notes_text=self.label(notice,load_preferences()['notes'],'small')
   self.notes_text.set_lines(6);self.notes_text.set_ellipsize(3)
   launcher=self.card(middle,'YOUR APPS')
-  app_row=Gtk.Box(spacing=8);launcher.pack_start(app_row,False,False,0)
+  app_row=Gtk.Box(spacing=8,halign=Gtk.Align.CENTER);launcher.pack_start(app_row,False,False,0)
   for title,app in available_apps():
    self.button(app_row,title,lambda _,selected=app:self.open_app(selected))
   stats=self.card(right,'SYSTEM'); self.stats=self.label(stats,'','small')
-  cal=self.card(right,'CALENDAR'); cal.pack_start(Gtk.Calendar(),False,False,0)
+  cal=self.card(right,'CALENDAR'); calendar_view=Gtk.Calendar(halign=Gtk.Align.CENTER);cal.pack_start(calendar_view,False,False,0)
   papers=self.card(right,'4K WALLPAPER COLLECTION')
   self.choice=Gtk.ComboBoxText(); self.paths=sorted((ROOT/'wallpapers').glob('*.png'))
   for path in self.paths:self.choice.append_text(path.stem[3:].replace('-',' ').title())
@@ -93,7 +94,7 @@ class Dashboard(Gtk.Window):
   if title:self.label(box,title,'heading')
   return box
  def label(self,parent,text,style):
-  label=Gtk.Label(label=text,xalign=0); label.get_style_context().add_class(style)
+  label=Gtk.Label(label=text,xalign=0.5,justify=Gtk.Justification.CENTER); label.get_style_context().add_class(style)
   label.set_line_wrap(True); label.set_max_width_chars(34)
   parent.pack_start(label,False,False,0); return label
  def button(self,parent,text,callback):

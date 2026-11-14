@@ -7,8 +7,9 @@ import signal
 import sys
 import os
 import gi
-from preferences import load,update,ACCENTS,WIDGETS
+from preferences import load,update,ACCENTS,WIDGETS,effective_accent
 from widget_layout import positions as layout_positions
+from wallpaper_palette import tinted_surface
 gi.require_version('Gtk','3.0')
 from gi.repository import Gtk,Gdk,GLib
 ROOT=Path(__file__).resolve().parent
@@ -85,19 +86,20 @@ def apply():
  prefs=load()
  if prefs==last:return GLib.SOURCE_CONTINUE
  previous=last;last=prefs
- scale=prefs['scale'];accent=ACCENTS[prefs['accent']]
+ scale=prefs['scale'];accent=effective_accent(prefs);surface=tinted_surface(accent)
  style=f'''
  .desktop-widget {{background:transparent;font-size:{round(13*scale)}px;}}
- .desktop-widget .card {{background:rgba(25,21,31,0.94);padding:{round(20*scale)}px;border:1px solid {accent};border-radius:{round(16*scale)}px;}}
+ .desktop-widget .card {{background:{surface};padding:{round(20*scale)}px;border:1px solid {accent};border-radius:{round(16*scale)}px;}}
  .desktop-widget .heading {{font-size:{round(11*scale)}px;color:{accent};}}
  .desktop-widget .small {{font-size:{round(12*scale)}px;color:#c8b9c8;}}
  .desktop-widget .hours {{font-size:{round(36*scale)}px;color:{accent};}}
  .desktop-widget .clock {{font-size:{round(52*scale)}px;color:{accent};}}
- .desktop-widget button {{padding:{round(6*scale)}px;}}
+ .desktop-widget button {{padding:{round(6*scale)}px;background:alpha({accent},0.14);border:1px solid alpha({accent},0.30);}}
+ .desktop-widget button:hover {{background:alpha({accent},0.26);}}
  .desktop-widget calendar {{font-size:{round(13*scale)}px;}}
  .desktop-widget progressbar progress {{background:{accent};}}
  '''
- restyle=previous is None or any(prefs[key]!=previous[key] for key in ('scale','accent'))
+ restyle=previous is None or any(prefs[key]!=previous[key] for key in ('scale','accent','auto_accent','accent_color'))
  if restyle:css.load_from_data(style.encode())
  for name,win in zip(names,windows):
   width=430 if name=='launcher' else 310 if name=='clock' else 265

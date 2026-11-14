@@ -11,8 +11,10 @@ gi.require_version('Gtk','4.0')
 gi.require_version('Adw','1')
 gi.require_version('GdkPixbuf','2.0')
 from gi.repository import Gtk,Adw,Gdk,GdkPixbuf,Gio,GLib
-from preferences import ROOT,WIDGETS,ACCENTS,load,update
+from preferences import ROOT,WIDGETS,ACCENTS,load,update,effective_accent
 import studio_backend as backend
+from wallpaper_collection import collection_paths,import_image
+from wallpaper_palette import from_image
 from live_logtime import live_hours,format_hours
 from native_wallpaper import NativeWallpaper
 
@@ -101,7 +103,7 @@ class Studio(Adw.ApplicationWindow):
   self.row(parent,title,control)
   self.bindings[key]=(control,'slider',multiplier)
  def make_wallpapers(self):
-  page=self.page('wallpapers','Wallpapers','A quiet backdrop. A different mood. Six original 4K scenes, plus your own collection.')
+  page=self.page('wallpapers','Wallpapers','A quiet backdrop. A different mood. Original landscapes, ten 4K anime wallpapers, and your own imports.')
   hero=self.panel(page)
   self.preview=Gtk.Picture(can_shrink=True,keep_aspect_ratio=True,height_request=260);self.preview.add_css_class('preview');hero.append(self.preview)
   self.wall_title=label('Choose a scene','brand');hero.append(self.wall_title)
@@ -110,6 +112,8 @@ class Studio(Adw.ApplicationWindow):
   self.apply_button=button('Apply wallpaper',lambda _:self.action(self.apply_wallpaper),'accent-button');actions.append(self.apply_button)
   actions.append(button('Match widget accent',lambda _:self.match_accent()))
   actions.append(button('Open image…',lambda _:self.choose(False)))
+  self.import_button=button('Add to collection…',lambda _:self.add_to_collection(),'accent-button')
+  hero.append(self.import_button)
   self.bg=NativeWallpaper()
   self.wall_status=label('','status');page.append(self.wall_status)
   folders=Gtk.Box(spacing=10);page.append(folders)
@@ -126,12 +130,13 @@ class Studio(Adw.ApplicationWindow):
   while child:
    following=child.get_next_sibling();self.gallery.remove(child);child=following
   folder=load()['wallpaper_folder'];self.folder_label.set_text(folder)
-  paths=backend.wallpapers(folder)
+  paths=collection_paths(folder)
   for path in paths:
    try:
     box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=9)
     image=Gtk.Picture.new_for_paintable(self.texture(path,240,135));image.set_size_request(190,107);image.set_can_shrink(True);box.append(image)
-    title=label(path.stem[3:].replace('-',' ').title() if path.parent==ROOT/'wallpapers' else path.stem)
+    import re
+    title=label(re.sub(r'^(?:anime-)?\d{2}-','',path.stem).replace('-',' ').title())
     title.set_ellipsize(3);title.set_max_width_chars(24);box.append(title)
     tile=Gtk.Button(child=box);tile.add_css_class('wall-tile');tile.connect('clicked',lambda _,chosen=path:self.select(chosen));self.gallery.insert(tile,-1)
    except GLib.Error:continue
@@ -141,7 +146,8 @@ class Studio(Adw.ApplicationWindow):
  def select(self,path):
   try:
    self.preview.set_paintable(self.texture(path,1000,560));self.selected=path
-   self.wall_title.set_text(path.stem.replace('-',' ').removeprefix('01 '))
+   import re
+   self.wall_title.set_text(re.sub(r'^(?:anime-)?\d{2}-','',path.stem).replace('-',' ').title())
    info=GdkPixbuf.Pixbuf.get_file_info(str(path))
    if info and info[0]:self.wall_info.set_text(f'{info[1]} × {info[2]} · '+('4K' if info[1]>=3840 and info[2]>=2160 else 'Image'))
   except GLib.Error as error:self.notify('Could not open image: '+str(error))
@@ -159,6 +165,32 @@ class Studio(Adw.ApplicationWindow):
      else:self.select(Path(path))
    dialog.destroy()
   chooser.connect('response',respond);chooser.show();self.chooser=chooser
+ def add_to_collection(self):
+  chooser=Gtk.FileChooserNative.new('Add wallpapers to your collection',self,Gtk.FileChooserAction.OPEN,'Add','Cancel')
+  chooser.set_select_multiple(True)
+  filter=Gtk.FileFilter();filter.set_name('Images')
+  for suffix in backend.IMAGE_SUFFIXES:filter.add_pattern('*'+suffix)
+  chooser.add_filter(filter)
+  def respond(dialog,response):
+   if response==Gtk.ResponseType.ACCEPT:
+    files=dialog.get_files();paths=[files.get_item(i).get_path() for i in range(files.get_n_items())]
+    self.import_button.set_sensitive(False)
+    def worker():
+     added=[];errors=[]
+     for path in paths:
+      if path is None:continue
+      try:added.append(import_image(path))
+      except (OSError,ValueError,GLib.Error) as error:errors.append(str(error))
+     GLib.idle_add(self.import_finished,added,errors)
+    threading.Thread(target=worker,daemon=True).start()
+   dialog.destroy()
+  chooser.connect('response',respond);chooser.show();self.chooser=chooser
+ def import_finished(self,added,errors):
+  if self.closed:return GLib.SOURCE_REMOVE
+  self.import_button.set_sensitive(True);self.fill_gallery()
+  if added:self.select(added[-1]);self.notify(f'{len(added)} wallpaper(s) ready in your collection.')
+  if errors:self.notify('Some files could not be added: '+errors[0])
+  return GLib.SOURCE_REMOVE
  def wallpaper_writable(self):return all(self.bg.is_writable(key) for key in ('picture-uri','picture-uri-dark'))
  def apply_wallpaper(self):
   if not self.selected:return
@@ -175,6 +207,8 @@ class Studio(Adw.ApplicationWindow):
     done.append(key)
    if self.bg.is_writable('picture-options'):self.bg.set_string('picture-options','zoom')
    Gio.Settings.sync()
+   update({'active_wallpaper':str(self.selected.resolve())})
+   if load()['auto_accent']:self.match_accent(silent=True)
    if getattr(self.bg,'pending_login',False):self.notify('Wallpaper saved. Log out and back in once to activate your personal wallpaper profile.')
    else:self.notify('Wallpaper applied.')
   except RuntimeError as error:
@@ -182,29 +216,40 @@ class Studio(Adw.ApplicationWindow):
     try:self.bg.set_string(key,old[key])
     except RuntimeError:pass
    self.notify(str(error))
- def match_accent(self):
-  if not self.selected:return
+ def match_accent(self,silent=False,path=None):
+  image=path or self.selected
+  if image is None:return
   try:
-   image=GdkPixbuf.Pixbuf.new_from_file_at_scale(str(self.selected),24,24,False)
-   pixels=image.get_pixels();stride=image.get_rowstride();channels=image.get_n_channels();colors=[]
-   for y in range(image.get_height()):
-    for x in range(image.get_width()):
-     i=y*stride+x*channels;r,g,b=pixels[i:i+3]
-     if max(r,g,b)>80 and max(r,g,b)-min(r,g,b)>35:colors.append((r,g,b))
-   if not colors:self.notify('This image is neutral. Choose an accent in Appearance.');return
-   average=[sum(c[i] for c in colors)/len(colors) for i in range(3)]
-   def distance(item):
-    rgb=[int(item[1][i:i+2],16) for i in (1,3,5)]
-    return sum((rgb[i]-average[i])**2 for i in range(3))
-   name=min(ACCENTS.items(),key=distance)[0];update({'accent':name});self.notify('Widget accent matched: '+name)
-  except GLib.Error as error:self.notify(str(error))
+   color=from_image(image)
+   update({'auto_accent':True,'accent_color':color})
+   if hasattr(self,'auto_color_switch') and not self.auto_color_switch.get_active():
+    self.auto_color_switch.handler_block_by_func(self.auto_color_changed)
+    self.auto_color_switch.set_active(True)
+    self.auto_color_switch.handler_unblock_by_func(self.auto_color_changed)
+   if not silent:self.notify('Widget color matched: '+color)
+  except (OSError,ValueError,GLib.Error) as error:self.notify('Could not read the wallpaper colors: '+str(error))
+ def choose_preset(self,name):
+  update({'accent':name,'auto_accent':False})
+  if hasattr(self,'auto_color_switch'):self.auto_color_switch.set_active(False)
+  self.notify('Fixed accent: '+name)
+ def auto_color_changed(self,control,_):
+  enabled=control.get_active();update({'auto_accent':enabled})
+  if enabled:
+   active=load()['active_wallpaper']
+   image=Path(active) if active and Path(active).is_file() else self.selected
+   if image:self.match_accent(silent=True,path=image)
  def make_appearance(self):
   page=self.page('appearance','Appearance','Soft surfaces, readable type, and an accent that feels like you.')
   group=self.panel(page,'COLOR')
   colors=Gtk.Box(spacing=10);group.append(colors)
   for name,color in ACCENTS.items():
-   item=button(name,lambda _,chosen=name:self.action(lambda:(update({'accent':chosen}),'Accent changed to '+chosen)[1]))
+   item=button(name,lambda _,chosen=name:self.choose_preset(chosen))
    item.set_tooltip_text(color);colors.append(item)
+  self.auto_color_switch=Gtk.Switch(active=load()['auto_accent'])
+  self.auto_color_switch.connect('notify::active',self.auto_color_changed)
+  self.row(group,'Automatically match wallpaper',self.auto_color_switch,'Use the strongest wallpaper hue when applying an image. A fixed preset turns this off.')
+  self.bindings['auto_accent']=(self.auto_color_switch,'switch',1)
+  self.accent_readout=label('','muted');group.append(self.accent_readout)
   group.append(label('Colors apply to your widgets. Other applications keep their existing theme.','muted'))
   sizing=self.panel(page,'SCALE & TRANSPARENCY')
   self.slider(sizing,'Widget size (%)','scale',80,180,5,100)
@@ -289,7 +334,10 @@ class Studio(Adw.ApplicationWindow):
   try:
    message=backend.restore_preferences();prefs=load()
    for key,(control,kind,multiplier) in self.bindings.items():
-    if kind=='switch':control.set_active(prefs[key])
+    if kind=='switch':
+     if key=='auto_accent':control.handler_block_by_func(self.auto_color_changed)
+     control.set_active(prefs[key])
+     if key=='auto_accent':control.handler_unblock_by_func(self.auto_color_changed)
     else:control.set_value(prefs[key]*multiplier)
    for key,control in self.widget_switches.items():control.set_active(prefs['visible'][key])
    self.note_buffer.set_text(prefs['notes']);self.username.set_text(prefs['username']);self.goal.set_value(prefs['target_hours'])
@@ -318,6 +366,7 @@ class Studio(Adw.ApplicationWindow):
   self.diagnostics.set_text('\n'.join(lines))
  def tick(self):
   if self.closed:return GLib.SOURCE_REMOVE
+  prefs=load();self.accent_readout.set_text(('Wallpaper dominant color · ' if prefs['auto_accent'] else 'Fixed accent · ')+effective_accent(prefs))
   running=bool(backend.widget_pids());self.running_label.set_text('● Desktop cards running' if running else '○ Desktop cards stopped')
   writable=self.wallpaper_writable();self.apply_button.set_sensitive(writable and self.selected is not None)
   self.wall_status.set_text(self.bg.status_text() if writable else (self.bg.last_error or 'The personal wallpaper profile could not be prepared. See Tools → Diagnostics.'))
