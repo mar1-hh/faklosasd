@@ -250,3 +250,10 @@ The helper uses pynput's X11 keyboard backend on the target campus desktop; Wayl
 Logs and status remain private in `state/keep-awake.log`, `state/keep-awake-status.json`, and `state/keep-awake.pid`. The helper checks the enabled preference at least once per second and handles termination with a best-effort Shift release. `uninstall.sh` stops it and removes only its owned login entry.
 
 Regression tests use a fake keyboard/controller and clock; they never send actual key events.
+
+
+### Updating from the old Desktop installation
+
+The installer now detects an existing enabled Neon card startup entry that points at another checkout (for example `~/Desktop/neon-desktop`) and retargets it to the checkout being installed. Explicitly disabled startup and unrelated app entries are left unchanged. The old entry is saved privately as `state/login-target-before.desktop`; uninstalling does not resurrect an outdated Neon version.
+
+To switch only the login target explicitly, run `/usr/bin/python3 install-dashboard.py` from this repository. This enables card startup for this checkout with zero added delay. The Applications launcher and login startup entry are separate; changing the launcher alone never changes which code runs at login.

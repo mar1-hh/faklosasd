@@ -43,6 +43,7 @@ else
 fi
 /usr/bin/python3 -c 'from studio_backend import backup_preferences; backup_preferences()'
 /usr/bin/python3 install-settings.py
+/usr/bin/python3 -c 'from studio_backend import refresh_widget_autostart; print(refresh_widget_autostart())'
 printf '\nNeon Studio is ready. Open it from Applications or run:\n/usr/bin/python3 "%s/control-center.py"\n' "$PWD"
 if [[ ${1:-} != --no-start ]]; then
   /usr/bin/python3 - <<'PY'

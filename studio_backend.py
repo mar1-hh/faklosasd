@@ -5,6 +5,7 @@ from pathlib import Path
 import signal
 import subprocess
 from preferences import ROOT,FILE,load,save,normalize
+from startup_entries import is_widget_entry,is_enabled,widget_target
 IMAGE_SUFFIXES={'.png','.jpg','.jpeg','.webp','.bmp'}
 def wallpapers(folder):
  folder=Path(folder).expanduser()
@@ -44,13 +45,25 @@ def autostart_path():
  return Path(os.environ.get('XDG_CONFIG_HOME',str(Path.home()/'.config')))/'autostart/neon-dashboard.desktop'
 def autostart_enabled():
  entry=autostart_path()
- try:return str(ROOT/'desktop-widgets.py') in entry.read_text()
+ try:return str(ROOT/'desktop-widgets.py') in entry.read_text() and is_enabled(entry.read_text())
  except OSError:return False
 def set_autostart(enabled):
  entry=autostart_path()
  if enabled:
   subprocess.run(['/usr/bin/python3',str(ROOT/'install-dashboard.py')],check=True,cwd=ROOT,capture_output=True,text=True)
  elif autostart_enabled():entry.unlink()
+def refresh_widget_autostart():
+ entry=autostart_path()
+ if not entry.exists():return 'Desktop-card login startup remains off.'
+ text=entry.read_text()
+ if not is_widget_entry(text) or not is_enabled(text):return 'Existing startup entry left unchanged.'
+ target=widget_target(text)
+ if target==ROOT/'desktop-widgets.py':return 'Desktop-card login startup already uses this checkout.'
+ (ROOT/'state').mkdir(exist_ok=True)
+ backup=ROOT/'state/login-target-before.desktop'
+ if not backup.exists():backup.write_text(text)
+ set_autostart(True)
+ return 'Updated desktop-card login startup to this checkout.'
 def backup_preferences():
  path=ROOT/'state/studio-before.json'
  if not path.exists():path.write_text(json.dumps(load(),indent=2))
