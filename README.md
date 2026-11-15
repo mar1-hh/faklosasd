@@ -6,23 +6,20 @@ A personal Linux desktop setup with a native settings app, seven desktop widgets
 
 ![Ten included 4K anime wallpapers](anime-wallpapers-preview.jpg)
 
+[Already installed? Follow the upgrade instructions below.](#upgrade-an-existing-installation)
+
 ## Install and run
 
 Run these commands in a terminal inside your graphical desktop session:
 
 ```bash
-git clone git@github.com:mar1-hh/faklosasd.git
-cd faklosasd
-bash install.sh
-```
-
-If you do not use SSH with GitHub:
-
-```bash
+cd ~/Desktop
 git clone https://github.com/mar1-hh/faklosasd.git
 cd faklosasd
 bash install.sh
 ```
+
+HTTPS cloning this public repository does not require a GitHub account or SSH key. If you already use SSH, you can use `git@github.com:mar1-hh/faklosasd.git` as the clone URL instead. The examples assume `~/Desktop/faklosasd`; substitute your checkout's actual path if you installed elsewhere.
 
 **No sudo is used.** The installer checks existing GTK libraries, chooses existing Python interpreters for Requests and the optional pynput helper, creates a user application launcher, starts the cards and enabled keep-awake helper, and opens **Neon Studio**. It does not download system packages or edit your shell startup files.
 
@@ -40,7 +37,49 @@ To install without starting anything now (the default-enabled keep-awake login e
 bash install.sh --no-start
 ```
 
-### Requirements
+## Upgrade an existing installation
+
+Use these steps if you or your friends already cloned this repository. Your widget settings, imported wallpapers, notes, logtime cache and restore snapshots stay in the Git-ignored `state/` folder.
+
+1. **Close the Neon Studio control-panel window first.** The desktop cards can remain until the restart step stops them. Closing the window lets the next launch load the new app code.
+2. Run:
+
+   ```bash
+   cd ~/Desktop/faklosasd
+   git pull --ff-only
+   /usr/bin/python3 -c 'from keep_awake import stop; print(stop())'
+   bash restart-widgets.sh
+   ```
+
+   The keep-awake command stops its current process without changing your saved on/off choice. The restart script stops this checkout's cards, reruns installation, refreshes launchers/interpreter paths, migrates an enabled older Neon login entry, and opens the updated app. It starts keep awake again only if your preference is enabled.
+3. In **Widgets**, confirm **Start cards when I log in** and **Keep awake at login** match your choices. Card startup remains opt-in; keep awake defaults to on only when no explicit choice was saved.
+
+Routine updates take effect after restarting the processes; a logout is only needed when GNOME first loads the personal wallpaper profile. Keep using the same checkout, so the existing `state/` folder stays attached to your installation. The optional example configuration replaces preferences and is intended for a deliberate reset, not a normal upgrade.
+
+If `git pull --ff-only` reports local source changes or diverged history, stop and preserve those edits before continuing. Your personal `state/` files are ignored by Git and do not need to be discarded for an update.
+
+### Moving from the old `neon-desktop` folder
+
+If your old widgets run from `~/Desktop/neon-desktop`, close the old control panel and stop those cards first:
+
+```bash
+cd ~/Desktop/neon-desktop
+/usr/bin/python3 -c 'from studio_backend import stop_widgets; print(stop_widgets())'
+```
+
+Then use the fresh-install commands above if you have not cloned `faklosasd`, or the existing-repository upgrade commands if you already have that checkout. Run installation from **the repository folder**; running scripts in `neon-desktop` continues to use the old code.
+
+The installer retargets an existing **enabled** Neon card login entry to this checkout. A disabled entry stays disabled. It also refreshes the Applications launcher and replaces the marked standalone `sc.py` startup entry with the app-controlled helper. Existing enabled login startup therefore follows the new repository on your next login.
+
+For a one-time switch of just the widget login target, run:
+
+```bash
+/usr/bin/python3 ~/Desktop/faklosasd/install-dashboard.py
+```
+
+To retain preferences when moving folders, copy `state/preferences.json` from the old installation **before the first launch of the new one**, provided the new checkout has no preferences you want to keep. You can bring old custom images into the new version with **Wallpapers → Add to collection…**. Keep the old folder until you have imported anything you need and applied a wallpaper from the new collection, since the desktop may still refer to an old image's path.
+
+## Requirements
 
 The main target is **Ubuntu 22.04, GNOME 42, X11**. The control panel uses GTK 4 and libadwaita; desktop cards run separately with GTK 3. Other GNOME releases may work but have not been visually verified. Wayland can restrict desktop positioning and dragging.
 
@@ -250,10 +289,3 @@ The helper uses pynput's X11 keyboard backend on the target campus desktop; Wayl
 Logs and status remain private in `state/keep-awake.log`, `state/keep-awake-status.json`, and `state/keep-awake.pid`. The helper checks the enabled preference at least once per second and handles termination with a best-effort Shift release. `uninstall.sh` stops it and removes only its owned login entry.
 
 Regression tests use a fake keyboard/controller and clock; they never send actual key events.
-
-
-### Updating from the old Desktop installation
-
-The installer now detects an existing enabled Neon card startup entry that points at another checkout (for example `~/Desktop/neon-desktop`) and retargets it to the checkout being installed. Explicitly disabled startup and unrelated app entries are left unchanged. The old entry is saved privately as `state/login-target-before.desktop`; uninstalling does not resurrect an outdated Neon version.
-
-To switch only the login target explicitly, run `/usr/bin/python3 install-dashboard.py` from this repository. This enables card startup for this checkout with zero added delay. The Applications launcher and login startup entry are separate; changing the launcher alone never changes which code runs at login.
