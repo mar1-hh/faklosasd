@@ -31,7 +31,7 @@ class SelectionTests(unittest.TestCase):
  def test_preview_does_not_apply_but_gallery_click_does(self):
   with tempfile.TemporaryDirectory() as tmp:
    path=Path(tmp)/'image.png';pix=GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB,False,8,20,12);pix.fill(0xff0000ff);pix.savev(str(path),'png',[],[])
-   clicks=[];widget=SimpleNamespace(texture=lambda *args:None,preview=SimpleNamespace(set_paintable=lambda _:None),wall_title=SimpleNamespace(set_text=lambda _:None),wall_info=SimpleNamespace(set_text=lambda _:None),wallpaper_tiles={},selection_queue=SimpleNamespace(clicked=clicks.append),notify=lambda _:None)
+   clicks=[];widget=SimpleNamespace(preview_generation=0,closed=False,image_loader=SimpleNamespace(request=lambda *args:None),texture=lambda *args:None,preview=SimpleNamespace(set_paintable=lambda _:None),wall_title=SimpleNamespace(set_text=lambda _:None),wall_info=SimpleNamespace(set_text=lambda _:None),wallpaper_tiles={},selection_queue=SimpleNamespace(clicked=clicks.append),notify=lambda _:None)
    studio.Studio.select(widget,path);self.assertEqual(clicks,[])
    studio.Studio.select(widget,path,apply=True);self.assertEqual(clicks,[path])
 if __name__=='__main__':unittest.main()

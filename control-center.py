@@ -20,6 +20,8 @@ from terminal_theme import TerminalTheme
 from wallpaper_collection import collection_paths,import_image
 from wallpaper_palette import from_image
 from wallpaper_selection import ClickApply
+from studio_theme import theme_css
+from image_loader import ImageLoader
 import anime_pack
 from live_logtime import live_hours,format_hours
 from native_wallpaper import NativeWallpaper
@@ -60,12 +62,18 @@ class Studio(Adw.ApplicationWindow):
   super().__init__(application=app,title='Neon Studio',default_width=1120,default_height=820)
   self.snapshot=None;self.snapshot_stale=False;self.busy=False;self.closed=False;self.sources=[];self.selected=None;self.bindings={};self.widget_switches={};self.wallpaper_tiles={};self.pack_busy=False
   self.selection_queue=ClickApply(GLib,self.apply_from_gallery)
+  self.image_loader=ImageLoader(GLib.idle_add,lambda path,w,h:GdkPixbuf.Pixbuf.new_from_file_at_scale(str(path),w,h,True))
+  self.gallery_generation=0;self.preview_generation=0
+  self.theme_signature=None;self.theme_provider=Gtk.CssProvider()
+  self.add_css_class('neon-studio')
   self.terminal_theme=TerminalTheme()
   self.updater=Updater();self.update_check_busy=False;self.installing_update=False;self.update_child=None
   self.connect('close-request',self.on_close)
   backend.backup_preferences()
   provider=Gtk.CssProvider();provider.load_from_data(CSS)
   Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(),provider,Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+  Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(),self.theme_provider,Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION+1)
+  self.sync_studio_theme(load())
   Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
   root=Gtk.Box(orientation=Gtk.Orientation.VERTICAL);self.set_content(root)
   header=Adw.HeaderBar();header.set_title_widget(Adw.WindowTitle(title='Neon Studio',subtitle='Your desktop, your rhythm'))
@@ -142,21 +150,25 @@ class Studio(Adw.ApplicationWindow):
   pix=GdkPixbuf.Pixbuf.new_from_file_at_scale(str(path),width,height,True)
   return Gdk.Texture.new_for_pixbuf(pix)
  def fill_gallery(self):
+  self.gallery_generation+=1;generation=self.gallery_generation
   self.wallpaper_tiles={}
   child=self.gallery.get_first_child()
   while child:
    following=child.get_next_sibling();self.gallery.remove(child);child=following
   folder=load()['wallpaper_folder'];self.folder_label.set_text(folder)
-  paths=collection_paths(folder)
+  paths=collection_paths(folder);active_wallpaper=load()['active_wallpaper']
   for path in paths:
    try:
     box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=9)
-    image=Gtk.Picture.new_for_paintable(self.texture(path,240,135));image.set_size_request(190,107);image.set_can_shrink(True);box.append(image)
+    image=Gtk.Picture();image.set_size_request(190,107);image.set_can_shrink(True);box.append(image)
+    def ready(pix,target=image,version=generation):
+     if pix is not None and not self.closed and version==self.gallery_generation:target.set_paintable(Gdk.Texture.new_for_pixbuf(pix))
+    self.image_loader.request(path,240,135,ready)
     import re
     title=label(re.sub(r'^(?:anime-)?\d{2}-','',path.stem).replace('-',' ').title())
     title.set_ellipsize(3);title.set_max_width_chars(24);box.append(title)
     tile=Gtk.Button(child=box);tile.add_css_class('wall-tile');tile.connect('clicked',lambda _,chosen=path:self.select(chosen,apply=True));self.gallery.insert(tile,-1);self.wallpaper_tiles[str(path.resolve())]=tile
-    if str(path.resolve())==load()['active_wallpaper']:tile.add_css_class('applied')
+    if str(path.resolve())==active_wallpaper:tile.add_css_class('applied')
    except GLib.Error:continue
   if paths:
    active=Path(load()['active_wallpaper']) if load()['active_wallpaper'] else None
@@ -165,7 +177,11 @@ class Studio(Adw.ApplicationWindow):
  def select(self,path,apply=False):
   path=Path(path)
   try:
-   self.preview.set_paintable(self.texture(path,1000,560));self.selected=path
+   self.selected=path;self.preview_generation+=1;generation=self.preview_generation
+   self.preview.set_paintable(None)
+   def ready(pix):
+    if pix is not None and not self.closed and generation==self.preview_generation:self.preview.set_paintable(Gdk.Texture.new_for_pixbuf(pix))
+   self.image_loader.request(path,1000,560,ready)
    import re
    self.wall_title.set_text(re.sub(r'^(?:anime-)?\d{2}-','',path.stem).replace('-',' ').title())
    info=GdkPixbuf.Pixbuf.get_file_info(str(path))
@@ -230,7 +246,7 @@ class Studio(Adw.ApplicationWindow):
  def anime_progress(self,item,path,error):
   if self.closed:return GLib.SOURCE_REMOVE
   if path:
-   self.pack_status.set_text('Ready · '+item['title']);self.fill_gallery()
+   self.pack_status.set_text('Ready · '+item['title'])
   else:
    self.pack_status.set_text('Could not download '+item['title']+' · retry or open its source.')
    print('Anime download failed: '+item['title']+': '+str(error),flush=True)
@@ -304,10 +320,12 @@ class Studio(Adw.ApplicationWindow):
   self.row(group,'Automatically match wallpaper',self.auto_color_switch,'Use the strongest wallpaper hue when applying an image. A fixed preset turns this off.')
   self.bindings['auto_accent']=(self.auto_color_switch,'switch',1)
   self.accent_readout=label('','muted');group.append(self.accent_readout)
-  group.append(label('Colors apply to your widgets and optionally GNOME Terminal below.','muted'))
+  group.append(label('Colors apply to your widgets, Neon Studio and optionally GNOME Terminal below.','muted'))
   sizing=self.panel(page,'SCALE & TRANSPARENCY')
   self.slider(sizing,'Widget size (%)','scale',80,180,5,100)
-  self.slider(sizing,'Opacity (%)','opacity',30,100,1,100)
+  self.slider(sizing,'Widget opacity (%)','opacity',30,100,1,100)
+  self.slider(sizing,'App background transparency (%)','studio_transparency',0,70,1)
+  sizing.append(label('0% is solid. Higher values reveal the desktop behind the app; text stays opaque. Requires desktop compositing.','muted'))
   self.slider(sizing,'Screen margin (px)','margin',0,200,2)
   self.switch(sizing,'Show clock seconds','clock_seconds')
   terminal=self.panel(page,'GNOME TERMINAL')
@@ -319,9 +337,14 @@ class Studio(Adw.ApplicationWindow):
   terminal.append(button('Apply / retry terminal theme',lambda _:self.refresh_terminal()))
   terminal.append(button('Restore original terminal',lambda _:self.restore_terminal()))
   terminal.append(label('Applies to the default GNOME Terminal profile. Open windows using that profile update automatically. Other terminal applications keep their own settings.','muted'))
+ def sync_studio_theme(self,prefs):
+  signature=(effective_accent(prefs),prefs['studio_transparency'])
+  if signature!=self.theme_signature:
+   self.theme_provider.load_from_data(theme_css(prefs));self.theme_signature=signature
  def refresh_terminal(self):
   self.terminal_theme.signature=None
   terminal_prefs=load()
+  self.sync_studio_theme(terminal_prefs)
   if self.terminal_switch.get_active()!=terminal_prefs['terminal_match']:self.terminal_switch.set_active(terminal_prefs['terminal_match'])
   self.terminal_status.set_text(self.terminal_theme.sync(terminal_prefs))
  def restore_terminal(self):
@@ -491,6 +514,7 @@ class Studio(Adw.ApplicationWindow):
   self.refresh_update_status()
   if self.installing_update:return GLib.SOURCE_CONTINUE
   terminal_prefs=load()
+  self.sync_studio_theme(terminal_prefs)
   if self.terminal_switch.get_active()!=terminal_prefs['terminal_match']:self.terminal_switch.set_active(terminal_prefs['terminal_match'])
   self.terminal_status.set_text(self.terminal_theme.sync(terminal_prefs))
   self.keep_awake_status.set_text(keep_awake.status_text())
@@ -509,6 +533,7 @@ class Studio(Adw.ApplicationWindow):
  def on_close(self,*_):
   self.closed=True
   self.selection_queue.close()
+  self.image_loader.close()
   for source in self.sources:GLib.source_remove(source)
   return False
 

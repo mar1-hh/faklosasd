@@ -10,11 +10,11 @@ ROOT=Path(__file__).resolve().parent
 FILE=ROOT/'state/preferences.json'
 WIDGETS={'logtime':'Logtime','links':'Quick links','clock':'Clock','system':'System monitor','calendar':'Calendar','notes':'Notes','launcher':'App launcher'}
 ACCENTS={'Rose':'#dfa1c6','Violet':'#b9a0fa','Teal':'#73d7c2','Amber':'#ebbd7e','Blue':'#8ebff0'}
-DEFAULTS={'scale':1.3,'opacity':0.92,'margin':24,'target_hours':120,'accent':'Rose','auto_accent':True,'accent_color':'#dfa1c6','active_wallpaper':'','clock_seconds':False,'arrange':False,'keep_awake_enabled':True,'terminal_match':False,'terminal_transparency':25,'notes':'Make something meaningful.\nOne session at a time.','username':'','wallpaper_folder':str(ROOT/'wallpapers'),'visible':{name:True for name in WIDGETS},'positions':{}}
+DEFAULTS={'scale':1.3,'opacity':0.92,'margin':24,'target_hours':120,'accent':'Rose','auto_accent':True,'accent_color':'#dfa1c6','active_wallpaper':'','clock_seconds':False,'arrange':False,'keep_awake_enabled':True,'terminal_match':False,'terminal_transparency':25,'studio_transparency':8,'notes':'Make something meaningful.\nOne session at a time.','username':'','wallpaper_folder':str(ROOT/'wallpapers'),'visible':{name:True for name in WIDGETS},'positions':{}}
 def normalize(data):
  if not isinstance(data,dict):data={}
  result=deepcopy(DEFAULTS)
- for key,lo,hi in [('scale',0.8,1.8),('opacity',0.3,1),('margin',0,200),('target_hours',1,1000),('terminal_transparency',0,100)]:
+ for key,lo,hi in [('scale',0.8,1.8),('opacity',0.3,1),('margin',0,200),('target_hours',1,1000),('terminal_transparency',0,100),('studio_transparency',0,70)]:
   try:
    value=float(data.get(key,result[key]))
    if math.isfinite(value):result[key]=max(lo,min(hi,value))
