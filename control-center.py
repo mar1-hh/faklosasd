@@ -14,6 +14,8 @@ from gi.repository import Gtk,Adw,Gdk,GdkPixbuf,Gio,GLib
 from preferences import ROOT,WIDGETS,ACCENTS,load,update,effective_accent
 import studio_backend as backend
 import keep_awake
+from updater import Updater
+from update_runtime import spawn
 from terminal_theme import TerminalTheme
 from wallpaper_collection import collection_paths,import_image
 from wallpaper_palette import from_image
@@ -59,6 +61,7 @@ class Studio(Adw.ApplicationWindow):
   self.snapshot=None;self.snapshot_stale=False;self.busy=False;self.closed=False;self.sources=[];self.selected=None;self.bindings={};self.widget_switches={};self.wallpaper_tiles={};self.pack_busy=False
   self.selection_queue=ClickApply(GLib,self.apply_from_gallery)
   self.terminal_theme=TerminalTheme()
+  self.updater=Updater();self.update_check_busy=False;self.installing_update=False;self.update_child=None
   self.connect('close-request',self.on_close)
   backend.backup_preferences()
   provider=Gtk.CssProvider();provider.load_from_data(CSS)
@@ -68,7 +71,7 @@ class Studio(Adw.ApplicationWindow):
   header=Adw.HeaderBar();header.set_title_widget(Adw.WindowTitle(title='Neon Studio',subtitle='Your desktop, your rhythm'))
   root.append(header)
   self.toast_overlay=Adw.ToastOverlay();root.append(self.toast_overlay)
-  body=Gtk.Box(vexpand=True);self.toast_overlay.set_child(body)
+  body=Gtk.Box(vexpand=True);self.body=body;self.toast_overlay.set_child(body)
   sidebar=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=10,width_request=205);sidebar.add_css_class('studio-sidebar');body.append(sidebar)
   sidebar.append(label('NEON / STUDIO','eyebrow'));sidebar.append(label('Make it yours.','brand'))
   self.stack=Gtk.Stack(hexpand=True,vexpand=True,transition_type=Gtk.StackTransitionType.CROSSFADE)
@@ -399,6 +402,10 @@ class Studio(Adw.ApplicationWindow):
   return GLib.SOURCE_REMOVE
  def make_tools(self):
   page=self.page('tools','Tools','Simple controls. A clear way back.')
+  updates=self.panel(page,'UPDATES')
+  self.update_status=label('Updates are checked at login and once per day.','muted');updates.append(self.update_status)
+  self.check_update_button=button('Check for updates',lambda _:self.check_updates());updates.append(self.check_update_button)
+  self.install_update_button=button('Update',lambda _:self.install_update(),'accent-button');updates.append(self.install_update_button)
   group=self.panel(page,'DESKTOP CARDS')
   group.append(button('Start desktop cards',lambda _:self.action(backend.start_widgets),'accent-button'))
   group.append(button('Stop desktop cards',lambda _:self.action(backend.stop_widgets)))
@@ -412,6 +419,38 @@ class Studio(Adw.ApplicationWindow):
   self.diagnostics=label('','muted');self.diagnostics.set_selectable(True);diagnostics.append(self.diagnostics)
   diagnostics.append(button('Refresh diagnostics',lambda _:self.refresh_diagnostics()));self.refresh_diagnostics()
   page.append(label('Neon Studio · Built for your desktop\nInspired by TrpStrata. Uses native GTK controls and your supplied logtime tracker.','muted'))
+ def check_updates(self):
+  if self.update_check_busy or self.installing_update:return
+  try:
+   self.update_check_child=spawn(ROOT,['/usr/bin/python3',str(ROOT/'updater.py'),'check'],'updates.log')
+   self.update_check_busy=True;self.check_update_button.set_sensitive(False)
+   self.update_status.set_text('Checking for updates…')
+  except OSError as error:self.notify(str(error))
+ def install_update(self):
+  state=self.updater.state()
+  if self.installing_update or not state.get('can_update'):return
+  if self.pack_busy or not self.import_button.get_sensitive():
+   self.notify('Wait for wallpaper downloads or imports to finish, then click Update.');return
+  try:
+   # Commit any text still in the editor before the independent updater starts.
+   start,end=self.note_buffer.get_bounds()
+   update({'notes':self.note_buffer.get_text(start,end,False)})
+   self.selection_queue.close()
+   self.update_child=spawn(ROOT,['/usr/bin/python3',str(ROOT/'updater.py'),'update','--target',state['target']],'updates.log')
+   self.installing_update=True;self.body.set_sensitive(False)
+   self.update_status.set_text('Installing update. Neon Studio will reopen when ready…')
+  except (OSError,KeyError) as error:self.notify(str(error))
+ def refresh_update_status(self):
+  if self.update_check_busy and self.update_check_child.poll() is not None:self.update_check_busy=False
+  state=self.updater.state()
+  if self.installing_update and self.update_child.poll() is not None:
+   self.installing_update=False;self.body.set_sensitive(True)
+   self.selection_queue=ClickApply(GLib,self.apply_from_gallery)
+   self.notify(state.get('message','Updater exited. See state/updates.log.'))
+  if not self.update_check_busy and not self.installing_update:
+   self.update_status.set_text(state.get('message','Updates are checked at login and once per day.'))
+  self.check_update_button.set_sensitive(not self.update_check_busy and not self.installing_update)
+  self.install_update_button.set_sensitive(bool(state.get('can_update')) and not self.update_check_busy and not self.installing_update)
  def restore_widgets(self):
   try:
    message=backend.restore_preferences();prefs=load()
@@ -449,6 +488,8 @@ class Studio(Adw.ApplicationWindow):
   self.diagnostics.set_text('\n'.join(lines))
  def tick(self):
   if self.closed:return GLib.SOURCE_REMOVE
+  self.refresh_update_status()
+  if self.installing_update:return GLib.SOURCE_CONTINUE
   terminal_prefs=load()
   if self.terminal_switch.get_active()!=terminal_prefs['terminal_match']:self.terminal_switch.set_active(terminal_prefs['terminal_match'])
   self.terminal_status.set_text(self.terminal_theme.sync(terminal_prefs))

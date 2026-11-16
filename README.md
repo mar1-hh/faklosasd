@@ -31,13 +31,31 @@ bash open-studio.sh
 
 Keep the checkout in place: the launcher points to it. If you move it, rerun `bash install.sh` from its new location. Close the older app/cards before switching from an earlier `~/Desktop/neon-desktop` installation to this checkout.
 
-To install without starting anything now (the default-enabled keep-awake login entry is still registered):
+To install without starting anything now (the default-enabled keep-awake and update-check login entries are still registered):
 
 ```bash
 bash install.sh --no-start
 ```
 
+## Automatic update notifications
+
+After installation, Neon Studio checks the public `mar1-hh/faklosasd` **main** branch in the background at graphical login and periodically during the session. Automatic network checks happen **at most once every 24 hours**, including failed attempts. Login and the control panel do not wait for Git or the network. A desktop notification announces each new commit once; open **Neon Studio → Tools → Updates** to see the status. Notifications require `notify-send` and an active desktop notification service; the Tools status works independently.
+
+**Check for updates** runs a fresh background check, so you can retry manually after reconnecting without waiting a day. **Update** is the only action that installs anything. Downloading metadata and notifying never changes the installed source files. Public HTTPS is used for checking/fetching, even for SSH clones, so friends do not need an unlocked SSH agent at login. The configured origin is preserved.
+
+Updates require a clean checkout on `main` whose `origin` points to this repository. Local modifications, untracked files, another branch/remote, an unfinished Git operation, or ahead/diverged commits block installation with an explanation. Commit or move your own changes and reconcile Git history yourself; the app never stashes, resets, forces a checkout, or overwrites those edits. If main changes after your check, check again before installing.
+
+The updater fetches the reviewed commit and uses a fast-forward-only merge. It rejects incoming private-data paths and collisions with ignored files. It takes a private backup under `state/updater/backups/`, preserves `state/preferences.json`, notes, custom wallpapers, caches, credentials and interpreter pins, and runs `bash install.sh --no-start` to refresh user launchers/startup entries. This registration-only installer uses existing dependencies; it does not install packages or require sudo. Existing external wallpaper folders and user credentials/configuration are left in place.
+
+Only this checkout's running cards and managed keep-awake helper are stopped and restarted; stopped cards stay stopped, and an active keep-awake session retains its remaining duration. The update watcher restarts, and an open control panel reopens with the new code. Settings controls are temporarily disabled; notes still in the editor are saved first. Finish wallpaper downloads/imports before clicking Update. Other checkouts and unrelated processes are not stopped. Cross-process locks prevent overlapping operations, and Git/network/installer commands have timeouts.
+
+If installation fails after Git advances, personal files are restored from the snapshot and the app reports the failure. **Check for updates → Update** retries installation when the code is already current. Git is never rolled back automatically. Keep the backup until you have confirmed the app works. See `state/updates.log` for updater-process output, `state/updater/install.log` for installer diagnostics, and `state/updater/status.json` for the last result. Backups are retained; you can remove older backup folders after confirming an update works to reclaim disk space. A forced shutdown during installation can require rerunning `bash install.sh` manually; backups remain available. New features requiring additional dependencies may need a manual dependency install before retrying.
+
+Checks use the user startup entry `~/.config/autostart/neon-updates.desktop` (or your `XDG_CONFIG_HOME` equivalent), with no system service and no sudo. `bash uninstall.sh` stops this checkout's watcher and removes its startup entry, while preserving personal files. Finish any running update before uninstalling.
+
 ## Upgrade an existing installation
+
+**One-time manual step for existing users:** older versions cannot discover this feature themselves. Run the commands below once to install the updater and its login entry. Afterward use **Tools → Updates** for routine upgrades; you do not need to send friends commands whenever main changes.
 
 Use these steps if you or your friends already cloned this repository. Your widget settings, imported wallpapers, notes, logtime cache and restore snapshots stay in the Git-ignored `state/` folder.
 
@@ -85,6 +103,7 @@ The main target is **Ubuntu 22.04, GNOME 42, X11**. The control panel uses GTK 4
 
 Required on the machine:
 
+- Git for update checks and fast-forward installation; `notify-send` (libnotify) for update notifications.
 - `/usr/bin/python3` with PyGObject (`gi`), GTK 3, GTK 4, libadwaita 1 and GdkPixbuf/SVG support.
 - A Python 3 interpreter with `requests` for logtime; it can differ from the GUI interpreter.
 - GNOME's `gsettings`, user `systemctl`, and standard `pgrep` tools.

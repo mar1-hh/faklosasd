@@ -56,6 +56,10 @@ def main(argv=None):
    # Import only after the lock/preferences check; tests never create real input.
    from pynput.keyboard import Controller,Key
    controller=Controller();key=Key.shift
+   if args.managed and 'NEON_KEEP_AWAKE_UNTIL' in os.environ:
+    resume=float(os.environ['NEON_KEEP_AWAKE_UNTIL'])
+    if resume and resume<=time.time():return 0
+    args.minutes=max(0,(resume-time.time())/60) if resume else 0
    started=time.time();ends=started+args.minutes*60 if args.minutes else None
    write_status('running',pid=os.getpid(),started_at=started,ends_at=ends,interval=args.interval)
    print(f'Keep-awake started: {args.minutes} minutes, Shift every {args.interval} seconds.',flush=True)

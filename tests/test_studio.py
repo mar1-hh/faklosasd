@@ -99,4 +99,32 @@ class StudioTests(unittest.TestCase):
    backend.set_autostart(False);self.assertTrue(entry.exists())
    entry.write_text(str(ROOT/'desktop-widgets.py'));backend.set_autostart(False);self.assertFalse(entry.exists())
 
+class UpdateControls(unittest.TestCase):
+ def test_check_spawns_independent_worker(self):
+  win=SimpleNamespace(update_check_busy=False,installing_update=False,
+   check_update_button=SimpleNamespace(set_sensitive=lambda value:None),
+   update_status=SimpleNamespace(set_text=lambda value:None))
+  with patch.object(studio,'spawn') as spawn:
+   studio.Studio.check_updates(win)
+   self.assertTrue(win.update_check_busy)
+   self.assertEqual(spawn.call_args.args[1][-1],'check')
+   studio.Studio.check_updates(win)
+   self.assertEqual(spawn.call_count,1)
+ def test_update_requires_available_status(self):
+  win=SimpleNamespace(updater=SimpleNamespace(state=lambda:{'can_update':False}),installing_update=False)
+  with patch.object(studio,'spawn') as spawn:
+   studio.Studio.install_update(win)
+   spawn.assert_not_called()
+ def test_update_saves_editor_note_and_passes_reviewed_commit(self):
+  buffer=SimpleNamespace(get_bounds=lambda:(0,1),get_text=lambda *args:'Unsaved note')
+  win=SimpleNamespace(updater=SimpleNamespace(state=lambda:{'can_update':True,'target':'a'*40}),
+   installing_update=False,pack_busy=False,import_button=SimpleNamespace(get_sensitive=lambda:True),
+   note_buffer=buffer,selection_queue=SimpleNamespace(close=lambda:None),
+   body=SimpleNamespace(set_sensitive=lambda value:None),update_status=SimpleNamespace(set_text=lambda value:None))
+  with patch.object(studio,'spawn') as spawn,patch.object(studio,'update') as save:
+   studio.Studio.install_update(win)
+   save.assert_called_once_with({'notes':'Unsaved note'})
+   self.assertEqual(spawn.call_args.args[1][-3:],['update','--target','a'*40])
+   self.assertTrue(win.installing_update)
+
 if __name__=='__main__':unittest.main()
