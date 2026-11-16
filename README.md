@@ -103,7 +103,7 @@ NEON_LOGTIME_PYTHON="$PWD/.venv/bin/python" bash install.sh
 ## Use the app
 
 - **Wallpapers:** browse all 16 included scenes, select an additional folder, or use **Add to collection…** to import one or several images. Imports are copied into `state/wallpapers/`, stay in the gallery even if the originals are moved, and remain Git-ignored. Duplicate content is reused; conflicting filenames are kept as separate numbered files. **Open image…** is available for a temporary preview without importing.
-- **Appearance:** automatically match the applied wallpaper’s dominant meaningful hue, or choose a fixed Rose, Violet, Teal, Amber or Blue preset; change widget size (80–180%), opacity, screen margin, and clock seconds. Changes save automatically.
+- **Appearance:** automatically match the applied wallpaper’s dominant meaningful hue, or choose a fixed Rose, Violet, Teal, Amber or Blue preset; change widget size (80–180%), opacity, screen margin, and clock seconds. Optionally match GNOME Terminal colors and transparency too. Changes save automatically.
 - **Widgets:** toggle Logtime, Quick links, Clock, System monitor, Calendar, Notes and App launcher independently. Enable **Arrange widgets**, drag a card by its title/empty area, then disable Arrange to put cards behind normal windows. Notes are editable here.
 - **Logtime:** set your 1337 username and target, inspect the active period, or refresh the API reading.
 - **Tools:** start/stop cards, view diagnostics, restore saved widget/background settings, and disable the personal wallpaper setup.
@@ -289,3 +289,25 @@ The helper uses pynput's X11 keyboard backend on the target campus desktop; Wayl
 Logs and status remain private in `state/keep-awake.log`, `state/keep-awake-status.json`, and `state/keep-awake.pid`. The helper checks the enabled preference at least once per second and handles termination with a best-effort Shift release. `uninstall.sh` stops it and removes only its owned login entry.
 
 Regression tests use a fake keyboard/controller and clock; they never send actual key events.
+
+
+## Transparent, wallpaper-matched GNOME Terminal
+
+1. Open **Appearance → GNOME Terminal** in Neon Studio.
+2. Turn on **Match terminal to wallpaper**. This feature is opt-in.
+3. Adjust **Background transparency (%)**: `0` is solid, `100` is fully transparent. The default is `25`.
+4. Click another wallpaper or choose a widget accent; the terminal follows the same accent and dark card surface automatically while the control panel is running.
+
+The default **GNOME Terminal profile** gets a matching dark background, readable foreground, accent-colored cursor/selection and a 16-color ANSI palette that keeps red/green/yellow semantics. Windows using that profile update live; other profiles and terminal applications keep their own settings. The app does not change the terminal font, shell command, shortcuts or default profile selection.
+
+Ubuntu's patched GNOME Terminal on the target workstation supports `use-transparent-background`, `use-theme-transparency` and `background-transparency-percent`. Other builds may omit those keys: colors still work, the transparency slider is disabled, and the status explains the limitation. Compositor support is required to see background transparency.
+
+Before changing any profile, its original color/opacity overrides are saved privately in `state/terminal-before.json`. Turning the switch off, clicking **Restore original terminal**, or uninstalling restores those values (including settings that were previously unset and inherited their defaults). Administrator-locked terminal keys are reported without bypassing them. **Apply / retry terminal theme** retries after a settings service or profile change.
+
+To restore from the checkout without opening the GUI:
+
+```bash
+/usr/bin/python3 terminal_theme.py restore
+```
+
+Close the old control-panel window and run `bash restart-widgets.sh` once after updating, then enable the option in Appearance. The tests use fake profiles and GNOME's memory backend; they do not recolor the test runner's live terminal.

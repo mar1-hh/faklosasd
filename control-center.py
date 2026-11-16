@@ -14,6 +14,7 @@ from gi.repository import Gtk,Adw,Gdk,GdkPixbuf,Gio,GLib
 from preferences import ROOT,WIDGETS,ACCENTS,load,update,effective_accent
 import studio_backend as backend
 import keep_awake
+from terminal_theme import TerminalTheme
 from wallpaper_collection import collection_paths,import_image
 from wallpaper_palette import from_image
 from wallpaper_selection import ClickApply
@@ -57,6 +58,7 @@ class Studio(Adw.ApplicationWindow):
   super().__init__(application=app,title='Neon Studio',default_width=1120,default_height=820)
   self.snapshot=None;self.snapshot_stale=False;self.busy=False;self.closed=False;self.sources=[];self.selected=None;self.bindings={};self.widget_switches={};self.wallpaper_tiles={};self.pack_busy=False
   self.selection_queue=ClickApply(GLib,self.apply_from_gallery)
+  self.terminal_theme=TerminalTheme()
   self.connect('close-request',self.on_close)
   backend.backup_preferences()
   provider=Gtk.CssProvider();provider.load_from_data(CSS)
@@ -299,12 +301,30 @@ class Studio(Adw.ApplicationWindow):
   self.row(group,'Automatically match wallpaper',self.auto_color_switch,'Use the strongest wallpaper hue when applying an image. A fixed preset turns this off.')
   self.bindings['auto_accent']=(self.auto_color_switch,'switch',1)
   self.accent_readout=label('','muted');group.append(self.accent_readout)
-  group.append(label('Colors apply to your widgets. Other applications keep their existing theme.','muted'))
+  group.append(label('Colors apply to your widgets and optionally GNOME Terminal below.','muted'))
   sizing=self.panel(page,'SCALE & TRANSPARENCY')
   self.slider(sizing,'Widget size (%)','scale',80,180,5,100)
   self.slider(sizing,'Opacity (%)','opacity',30,100,1,100)
   self.slider(sizing,'Screen margin (px)','margin',0,200,2)
   self.switch(sizing,'Show clock seconds','clock_seconds')
+  terminal=self.panel(page,'GNOME TERMINAL')
+  self.terminal_switch=self.switch(terminal,'Match terminal to wallpaper','terminal_match','Use the same accent as your widgets, with a dark background. Turning this off restores the saved profile.')
+  self.terminal_switch.set_sensitive(self.terminal_theme.available())
+  self.slider(terminal,'Background transparency (%)','terminal_transparency',0,100,1)
+  self.bindings['terminal_transparency'][0].set_sensitive(self.terminal_theme.transparency_supported())
+  self.terminal_status=label('','muted');terminal.append(self.terminal_status)
+  terminal.append(button('Apply / retry terminal theme',lambda _:self.refresh_terminal()))
+  terminal.append(button('Restore original terminal',lambda _:self.restore_terminal()))
+  terminal.append(label('Applies to the default GNOME Terminal profile. Open windows using that profile update automatically. Other terminal applications keep their own settings.','muted'))
+ def refresh_terminal(self):
+  self.terminal_theme.signature=None
+  terminal_prefs=load()
+  if self.terminal_switch.get_active()!=terminal_prefs['terminal_match']:self.terminal_switch.set_active(terminal_prefs['terminal_match'])
+  self.terminal_status.set_text(self.terminal_theme.sync(terminal_prefs))
+ def restore_terminal(self):
+  try:
+   message=self.terminal_theme.restore();update({'terminal_match':False});self.terminal_switch.set_active(False);self.notify(message)
+  except (OSError,RuntimeError,ValueError,GLib.Error) as error:self.notify(str(error))
  def make_widgets(self):
   page=self.page('widgets','Widgets','Choose your essentials. Move them into place. Changes save automatically.')
   group=self.panel(page,'YOUR DESKTOP')
@@ -429,6 +449,9 @@ class Studio(Adw.ApplicationWindow):
   self.diagnostics.set_text('\n'.join(lines))
  def tick(self):
   if self.closed:return GLib.SOURCE_REMOVE
+  terminal_prefs=load()
+  if self.terminal_switch.get_active()!=terminal_prefs['terminal_match']:self.terminal_switch.set_active(terminal_prefs['terminal_match'])
+  self.terminal_status.set_text(self.terminal_theme.sync(terminal_prefs))
   self.keep_awake_status.set_text(keep_awake.status_text())
   prefs=load()
   if self.keep_awake_switch.get_active()!=prefs['keep_awake_enabled']:
