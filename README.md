@@ -1,6 +1,6 @@
 # Neon Studio
 
-A personal Linux desktop setup with a native settings app, seven desktop widgets, live 1337 logtime, and six original **3840 × 2160 wallpapers** plus **ten anime wallpapers at 4K or higher**. Inspired by [TrpStrata](https://github.com/MliliGenes/TrpStrata).
+A personal Linux desktop setup with a native settings app, seven desktop widgets, live 1337 logtime, and six original **3840 × 2160 wallpapers** plus **ten anime wallpapers at 4K or higher**.
 
 ![Six original 4K wallpapers](wallpapers-preview.jpg)
 
