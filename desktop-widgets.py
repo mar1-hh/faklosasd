@@ -87,25 +87,38 @@ def apply():
  prefs=load()
  if prefs==last:return GLib.SOURCE_CONTINUE
  previous=last;last=prefs
- scale=prefs['scale'];accent=effective_accent(prefs);surface=tinted_surface(accent)
+ scale=prefs['scale'];accent='#73d7e8';surface=tinted_surface(effective_accent(prefs))
  style=f'''
- .desktop-widget {{background:transparent;font-size:{round(13*scale)}px;}}
- .desktop-widget .card {{background:{surface};padding:{round(20*scale)}px;border:1px solid {accent};border-radius:{round(16*scale)}px;}}
+ .desktop-widget {{background:transparent;color:#f5fbff;font-family:Sans;font-size:{round(13*scale)}px;}}
+ .desktop-widget .card {{background:{surface};padding:{round(14*scale)}px;border:1px solid alpha({accent},0.45);border-radius:{round(16*scale)}px;}}
+ .desktop-widget label {{text-shadow:0 1px 2px rgba(0,0,0,0.65);}}
  .desktop-widget .heading {{font-size:{round(11*scale)}px;color:{accent};}}
- .desktop-widget .small {{font-size:{round(12*scale)}px;color:#c8b9c8;}}
- .desktop-widget .hours {{font-size:{round(36*scale)}px;color:{accent};}}
+ .desktop-widget .small {{font-size:{round(12*scale)}px;color:#d5e5eb;}}
+ .desktop-widget .hours {{font-size:{round(27*scale)}px;color:{accent};}}
  .desktop-widget .clock {{font-size:{round(52*scale)}px;color:{accent};}}
  .desktop-widget button {{padding:{round(6*scale)}px;background:alpha({accent},0.14);border:1px solid alpha({accent},0.30);}}
  .desktop-widget button:hover {{background:alpha({accent},0.26);}}
  .desktop-widget calendar {{font-size:{round(13*scale)}px;}}
- .desktop-widget progressbar progress {{background:{accent};}}
+ .desktop-widget progressbar trough {{background:rgba(255,255,255,0.12);min-height:5px;border-radius:5px;}}
+ .desktop-widget progressbar progress {{background:{accent};min-height:5px;border-radius:5px;}}
+ .desktop-widget .break-mode .hours,.desktop-widget .break-mode .heading {{color:#83e5ae;}}
+ .desktop-widget .break-mode progressbar progress {{background:#83e5ae;}}
+ .desktop-widget .orbit-card .orbit-total {{font-size:{round(25*scale)}px;font-weight:700;color:#f5fbff;}}
+ .desktop-widget .orbit-card .orbit-percent {{font-size:{round(16*scale)}px;color:{accent};font-weight:600;}}
+ .desktop-widget .orbit-card .orbit-value {{font-size:{round(15*scale)}px;color:#f5fbff;}}
+ .desktop-widget .orbit-card .orbit-live {{color:#83e5ae;}}
+ .desktop-widget .orbit-card separator {{background:alpha({accent},.22);min-width:1px;}}
+ .desktop-widget .orbit-card button {{padding:{round(3*scale)}px;min-height:16px;min-width:16px;}}
+ .desktop-widget .focus-mode .hours {{color:{accent};}}
+ .desktop-widget button {{border-radius:8px;}}
+
  '''
  restyle=previous is None or any(prefs[key]!=previous[key] for key in ('scale','accent','auto_accent','accent_color'))
  if restyle:css.load_from_data((style+calendar_css(accent)).encode())
  for name,win in zip(names,windows):
   width=430 if name=='launcher' else 310 if name=='clock' else 265
   if previous is None or scale!=previous['scale']:
-   win.get_child().set_spacing(round(12*scale));win.get_child().set_size_request(round(width*scale),-1)
+   win.get_child().set_spacing(round(8*scale));win.get_child().set_size_request(round(width*scale),-1)
    win.resize(round(width*scale),1)
   win.set_opacity(prefs['opacity'])
   if prefs['visible'][name]:win.show_all()

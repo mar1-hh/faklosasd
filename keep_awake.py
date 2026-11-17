@@ -7,6 +7,7 @@ import subprocess
 import time
 from preferences import ROOT,load,update
 from native_wallpaper import atomic_write
+from session_environment import graphical_environment
 MARKER='X-Neon-Keep-Awake=true'
 
 def entry_path():
@@ -40,7 +41,7 @@ def start():
  if running_pid():return 'Keep awake is running.'
  python=interpreter();(ROOT/'state').mkdir(exist_ok=True)
  with (ROOT/'state/keep-awake.log').open('w') as log:
-  process=subprocess.Popen([str(python),'-u',str(ROOT/'sc.py'),'--managed'],cwd=ROOT,stdin=subprocess.DEVNULL,stdout=log,stderr=log,start_new_session=True)
+  process=subprocess.Popen([str(python),'-u',str(ROOT/'sc.py'),'--managed'],cwd=ROOT,env=graphical_environment(),stdin=subprocess.DEVNULL,stdout=log,stderr=log,start_new_session=True)
   try:code=process.wait(timeout=.5)
   except subprocess.TimeoutExpired:return 'Keep awake started.'
   if code:raise RuntimeError('Keep awake could not start. See state/keep-awake.log.')

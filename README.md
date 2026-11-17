@@ -330,3 +330,17 @@ To restore from the checkout without opening the GUI:
 ```
 
 Close the old control-panel window and run `bash restart-widgets.sh` once after updating, then enable the option in Appearance. The tests use fake profiles and GNOME's memory backend; they do not recolor the test runner's live terminal.
+
+## Pomodoro and refreshed desktop cards
+
+The desktop cards retain your saved opacity and wallpaper-tinted surfaces. Cyan highlights, brighter text, compact controls and consistent spacing improve readability. Logtime shows accumulated hours/minutes against the target, completion and remaining hours; the active session retains seconds. Quick Links sit in one row, System includes a memory bar, and the calendar marks today while dimming adjacent-month dates.
+
+Enable **Pomodoro** in **Widgets**. Its default location is below Quick Links; it searches for free space if that column is full. Use **Arrange widgets** to move it and save its position. Very small displays or large widget scales may require reducing scale or hiding cards to fit everything.
+
+Choose Focus, Short or Long, then **Start**. **Pause** preserves remaining time; **Reset** restores the selected mode's duration; **Skip** moves on without crediting a focus session. Four completed focus sessions offer a long break. The four dots track the current cycle. Completing or skipping a long break begins a new cycle.
+
+Under **Appearance → Pomodoro**, set durations (defaults 25/5/15 minutes), notifications, sound and optional automatic next-session startup. Duration changes apply at Reset or the next session. Manual startup is the default. Focus is cyan; breaks are green. Notifications use existing `notify-send`; sound uses `paplay` and the system completion sound when available. Missing optional tools do not interrupt the timer.
+
+Timer state is stored privately in `state/pomodoro.json`. A running timer uses a deadline, survives widget restarts, and handles a late completion once. With auto-start, the next session begins when the completion is processed; missed unattended cycles are not credited. Hiding the card does not reset or pause it. Completion is saved before alerts are sent, preventing repeat alerts after a restart; an abrupt crash between saving and alert delivery can suppress that alert.
+
+To try the changes, close the settings window, run `bash restart-widgets.sh`, then open Appearance and Widgets. Start/Pause/Reset/Skip the timer, enable a one-minute focus duration and Reset to test completion, and restart the widgets while the timer is running to verify recovery. Check the calendar, links and logtime alongside it. No sudo or additional Python packages are needed.

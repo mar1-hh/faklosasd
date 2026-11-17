@@ -54,6 +54,11 @@ def main(argv=None):
   controller=None;key=None
   try:
    # Import only after the lock/preferences check; tests never create real input.
+   from session_environment import graphical_environment
+   session=graphical_environment()
+   for variable in ('DISPLAY','XAUTHORITY','WAYLAND_DISPLAY','XDG_SESSION_TYPE'):
+    if variable in session:os.environ[variable]=session[variable]
+    else:os.environ.pop(variable,None)
    from pynput.keyboard import Controller,Key
    controller=Controller();key=Key.shift
    if args.managed and 'NEON_KEEP_AWAKE_UNTIL' in os.environ:
@@ -67,7 +72,10 @@ def main(argv=None):
    write_status(result);print('Keep-awake '+result+'.',flush=True)
    return 0
   except Exception as error:
-   write_status('error',message=str(error));print('Keep-awake error: '+str(error),flush=True)
+   message=str(error)
+   if 'X connection' in message or 'MIT-MAGIC-COOKIE' in message:
+    message='Cannot connect to your graphical session. Open Neon Studio from Applications and restart Keep awake. '+('This Shift helper requires an X11 session.' if os.environ.get('XDG_SESSION_TYPE')=='wayland' else 'If the session changed, close and reopen Neon Studio.')
+   write_status('error',message=message);print('Keep-awake error: '+str(error),flush=True)
    return 1
   finally:
    if controller is not None:

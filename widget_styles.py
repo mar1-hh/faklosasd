@@ -19,7 +19,7 @@ def calendar_css(accent):
  }}
  .desktop-widget calendar {{color:#e9e2eb;border-width:0;padding:4px;}}
  .desktop-widget calendar.header {{color:{accent};font-weight:600;}}
- .desktop-widget calendar.highlight {{color:{accent};}}
+ .desktop-widget calendar.highlight {{color:{accent};font-weight:800;text-shadow:0 0 3px alpha({accent},0.5);}}
  .desktop-widget calendar:selected {{color:{accent};font-weight:700;background-color:transparent;}}
  .desktop-widget calendar:indeterminate {{color:alpha(#e9e2eb,0.38);}}
  '''
