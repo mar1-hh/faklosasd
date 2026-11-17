@@ -70,6 +70,39 @@ class Updates(unittest.TestCase):
                 self.assertEqual(file.read_text(),'personal');self.assertEqual(self.runtime.events,[])
                 if path=='version':self.git(self.root,'restore','version')
                 else:file.unlink()
+    def test_added_wallpapers_do_not_block_and_survive_update(self):
+        target=self.feature()
+        folder=self.root/'wallpapers/personal';folder.mkdir(parents=True)
+        image=folder/'my favorite.png';image.write_bytes(b'personal image')
+        self.assertTrue(self.u.check(force=True)['can_update'])
+        self.assertEqual(self.u.install(target)['status'],'current')
+        self.assertEqual(image.read_bytes(),b'personal image')
+        backup=Path(self.u.state()['backup'])/'personal-wallpapers/wallpapers/personal/my favorite.png'
+        self.assertEqual(backup.read_bytes(),b'personal image')
+    def test_wallpaper_filename_collision_is_explained_and_protected(self):
+        (self.root/'wallpapers').mkdir();image=self.root/'wallpapers/new.png';image.write_bytes(b'mine')
+        (self.source/'wallpapers').mkdir();(self.source/'wallpapers/new.png').write_bytes(b'upstream')
+        self.commit('new wallpaper');target=self.feature()
+        result=self.u.install(target)
+        self.assertEqual(result['status'],'error');self.assertIn('same path',result['message'])
+        self.assertEqual(image.read_bytes(),b'mine');self.assertEqual(self.runtime.events,[])
+    def test_personal_wallpaper_restored_after_installer_failure(self):
+        (self.source/'install.sh').write_text('printf changed > wallpapers/mine.png\nexit 1\n')
+        self.commit('installer failure');target=self.feature()
+        (self.root/'wallpapers').mkdir();image=self.root/'wallpapers/mine.png';image.write_bytes(b'personal')
+        self.assertEqual(self.u.install(target)['status'],'error')
+        self.assertEqual(image.read_bytes(),b'personal')
+    def test_code_in_wallpapers_is_still_blocked(self):
+        target=self.feature();(self.root/'wallpapers').mkdir();(self.root/'wallpapers/local.py').write_text('code')
+        self.assertFalse(self.u.check(force=True)['can_update'])
+        self.assertEqual(self.u.install(target)['status'],'error')
+    def test_modified_bundled_wallpaper_is_not_overwritten(self):
+        (self.source/'wallpapers').mkdir();(self.source/'wallpapers/bundled.png').write_bytes(b'original')
+        self.commit('bundled');self.git(self.source,'push',str(self.remote),'main')
+        self.git(self.root,'pull','--ff-only')
+        image=self.root/'wallpapers/bundled.png';image.write_bytes(b'edited')
+        target=self.feature();self.assertEqual(self.u.install(target)['status'],'error')
+        self.assertEqual(image.read_bytes(),b'edited')
     def test_staged_change_is_protected(self):
         target=self.feature();(self.root/'version').write_text('mine');self.git(self.root,'add','version')
         self.u.install(target)

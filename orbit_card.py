@@ -4,10 +4,11 @@ import gi
 gi.require_version('Gtk','3.0')
 from gi.repository import Gtk
 from logtime_orbit import ring_geometry
+from preferences import load, effective_accent
 
 class Orbit:
  def __init__(self,host,parent,refresh,settings):
-  self.fraction=0;self.scale=None
+  self.fraction=0;self.scale=None;self.accent=effective_accent(load())
   self.card=host.card(parent,'');self.card.get_style_context().add_class('orbit-card')
   header=Gtk.Box(spacing=6);self.card.pack_start(header,False,False,0)
   title=host.label(header,'42 / LOGTIME','heading');title.set_xalign(0);title.set_hexpand(True)
@@ -34,13 +35,17 @@ class Orbit:
  def resize(self,scale):
   if scale==self.scale:return
   self.scale=scale;size=round(190*scale);self.ring.set_size_request(size,size)
+ def set_accent(self,accent):
+  if accent!=self.accent:
+   self.accent=accent;self.ring.queue_draw()
  def draw(self,widget,cr):
   x,y,radius,stroke=ring_geometry(widget.get_allocated_width(),widget.get_allocated_height())
   if radius<=0:return False
-  cr.set_line_width(stroke);cr.set_source_rgba(.60,.78,.84,.18)
+  rgb=tuple(int(self.accent[i:i+2],16)/255 for i in (1,3,5))
+  cr.set_line_width(stroke);cr.set_source_rgba(*rgb,.18)
   cr.arc(x,y,radius,0,2*math.pi);cr.stroke()
   if self.fraction>0:
-   cr.set_source_rgba(.45,.84,.91,1);cr.set_line_cap(1)
+   cr.set_source_rgba(*rgb,1);cr.set_line_cap(1)
    cr.arc(x,y,radius,-math.pi/2,-math.pi/2+2*math.pi*self.fraction);cr.stroke()
   return False
  def render(self,values,scale):

@@ -15,7 +15,7 @@ from pathlib import Path
 from live_logtime import format_hours, live_hours
 from launchers import available_apps
 from external_actions import ExternalActions
-from preferences import load as load_preferences
+from preferences import load as load_preferences, effective_accent
 gi.require_version('Gtk','3.0')
 from gi.repository import Gtk,Gdk,GdkPixbuf,GLib,Gio
 ROOT=Path(__file__).resolve().parent
@@ -193,9 +193,10 @@ class Dashboard(Gtk.Window):
   if not data and not self.log_snapshot:self.status.set_text('Logtime unavailable · try Refresh')
   return GLib.SOURCE_REMOVE
  def render_logtime(self):
-  self.orbit.resize(load_preferences()['scale'])
+  prefs=load_preferences()
+  self.orbit.resize(prefs['scale']);self.orbit.set_accent(effective_accent(prefs))
   if not self.log_snapshot:return
-  data=self.log_snapshot;prefs=load_preferences()
+  data=self.log_snapshot
   self.orbit.render(orbit_values(data,prefs.get('target_hours')),prefs['scale'])
   if self.busy:self.status.set_text('Refreshing API · session continues')
   elif self.log_stale:self.status.set_text('API offline · cached total + live session')

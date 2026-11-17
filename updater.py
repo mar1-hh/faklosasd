@@ -134,9 +134,27 @@ class Updater:
             path = Path(self.git('rev-parse', '--git-path', name))
             if not path.is_absolute(): path = self.root / path
             if path.exists(): raise UpdateError('Finish or abort the existing Git operation before updating.')
-        if clean and self.git('status', '--porcelain=v1', '--untracked-files=all'):
-            raise UpdateError('Local modifications or untracked files exist. Commit or move them before updating; nothing was overwritten.')
+        if clean:
+            if self.git('status', '--porcelain=v1', '--untracked-files=no'):
+                raise UpdateError('Tracked files have local modifications. Commit or move those edits before updating. For personal wallpapers, use Wallpapers → Add to collection; bundled image edits are protected too.')
+            personal = set(self.personal_wallpapers())
+            others = self.git('ls-files', '--others', '--exclude-standard', '-z').split('\0')
+            if any(name and name not in personal for name in others):
+                raise UpdateError('Untracked files outside the personal wallpaper collection exist. Move them before updating; nothing was overwritten.')
         return self.git('rev-parse', 'HEAD')
+
+    def personal_wallpapers(self):
+        """Only untracked regular images inside wallpapers/ qualify as personal data."""
+        names = self.git('ls-files', '--others', '--exclude-standard', '-z').split('\0')
+        result = []
+        for name in names:
+            path = Path(name)
+            if not path.parts or path.parts[0] != 'wallpapers': continue
+            file = self.root / path
+            if path.suffix.lower() not in ('.png', '.jpg', '.jpeg', '.webp', '.bmp'): continue
+            if file.is_symlink() or not file.is_file(): continue
+            if file.resolve().is_relative_to((self.root / 'wallpapers').resolve()): result.append(name)
+        return result
 
     def fetch(self):
         # Public HTTPS works at login without an unlocked SSH agent. Never edits origin.
@@ -161,7 +179,10 @@ class Updater:
         names = self.git('diff', '--name-only', '-z', head, target).split('\0')
         tracked = self.git('ls-tree', '-r', '--name-only', '-z', target).split('\0')
         ignored = self.git('ls-files', '--others', '--ignored', '--exclude-standard', '-z').split('\0')
+        personal = self.personal_wallpapers()
         for name in names:
+            if name and any(item == name or item.startswith(name + '/') or name.startswith(item + '/') for item in personal):
+                raise UpdateError('An incoming bundled wallpaper has the same path as a personal image. Import your image with Wallpapers → Add to collection, then move the original out of wallpapers/ and retry. Nothing was overwritten.')
             if name and any(item and (name == item or item.startswith(name + '/') or name.startswith(item + '/')) for item in ignored):
                 raise UpdateError('The update would replace an ignored local file. Move it to safety before updating.')
         for name in names + tracked:
@@ -218,11 +239,17 @@ class Updater:
             path = self.root / name
             if path.is_symlink(): (folder / name).symlink_to(os.readlink(path))
             elif path.is_file(): shutil.copy2(path, folder / name)
+        for name in self.personal_wallpapers():
+            destination = folder / 'personal-wallpapers' / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(self.root / name, destination)
         return folder
 
     def restore(self, folder):
         # Restore existing personal data, retaining any newly created installer backups.
         restore_tree(folder / 'state', self.root / 'state')
+        personal = folder / 'personal-wallpapers'
+        if personal.exists(): restore_tree(personal, self.root)
         for name in ('python', 'keep-awake-python', '.env'):
             path = folder / name
             if path.is_symlink() or path.is_file():

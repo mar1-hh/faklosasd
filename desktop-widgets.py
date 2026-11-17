@@ -87,7 +87,7 @@ def apply():
  prefs=load()
  if prefs==last:return GLib.SOURCE_CONTINUE
  previous=last;last=prefs
- scale=prefs['scale'];accent='#73d7e8';surface=tinted_surface(effective_accent(prefs))
+ scale=prefs['scale'];accent=effective_accent(prefs);surface=tinted_surface(accent)
  style=f'''
  .desktop-widget {{background:transparent;color:#f5fbff;font-family:Sans;font-size:{round(13*scale)}px;}}
  .desktop-widget .card {{background:{surface};padding:{round(14*scale)}px;border:1px solid alpha({accent},0.45);border-radius:{round(16*scale)}px;}}

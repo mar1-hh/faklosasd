@@ -51,9 +51,28 @@ for size in (152,247,342):
   surface=cairo.ImageSurface(cairo.FORMAT_ARGB32,size,size)
   context=cairo.Context(surface)
   widget=SimpleNamespace(get_allocated_width=lambda:size,get_allocated_height=lambda:size)
-  Orbit.draw(SimpleNamespace(fraction=fraction),widget,context)
+  Orbit.draw(SimpleNamespace(fraction=fraction,accent='#dfa1c6'),widget,context)
   surface.flush()
   assert any(surface.get_data()),'ring did not draw'
+"""
+  result=subprocess.run(['/usr/bin/python3','-c',script],capture_output=True,text=True)
+  self.assertEqual(result.returncode,0,result.stderr)
+
+ def test_ring_repaints_on_accent_change_without_progress_change(self):
+  import subprocess
+  script="""
+from types import SimpleNamespace
+from orbit_card import Orbit
+calls=[]
+ring=SimpleNamespace(queue_draw=lambda:calls.append('draw'))
+widget=SimpleNamespace(accent='#73d7e8',ring=ring,fraction=.5)
+Orbit.set_accent(widget,'#dfa1c6')
+assert widget.accent=='#dfa1c6' and calls==['draw']
+Orbit.set_accent(widget,'#dfa1c6')
+assert calls==['draw']
+from preferences import normalize,effective_accent
+Orbit.set_accent(widget,effective_accent(normalize({'auto_accent':False,'accent':'Amber'})))
+assert widget.accent=='#ebbd7e' and len(calls)==2
 """
   result=subprocess.run(['/usr/bin/python3','-c',script],capture_output=True,text=True)
   self.assertEqual(result.returncode,0,result.stderr)
