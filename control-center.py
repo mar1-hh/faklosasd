@@ -14,6 +14,7 @@ from gi.repository import Gtk,Adw,Gdk,GdkPixbuf,Gio,GLib
 from preferences import ROOT,WIDGETS,ACCENTS,load,update,effective_accent
 import studio_backend as backend
 import keep_awake
+import desktop_icons
 from updater import Updater
 from update_runtime import spawn
 from terminal_theme import TerminalTheme
@@ -367,7 +368,15 @@ class Studio(Adw.ApplicationWindow):
    def toggled(control,_,name=key):
     prefs=load();prefs['visible'][name]=control.get_active();update({'visible':prefs['visible']})
    item.connect('notify::active',toggled);self.row(group,title,item);self.widget_switches[key]=item
+  collection=self.panel(page,'DESKTOP COLLECTION')
+  self.collection_folder_label=label(load()['collection_folder'],'muted');collection.append(self.collection_folder_label)
+  collection.append(button('Choose collection folder…',lambda _:self.choose_collection_folder()))
+  collection.append(label('Enable Desktop collection above. Files stay in this folder; click an item in the widget to open it.','muted'))
+  self.icons_button=button('Restore desktop icons' if desktop_icons.BACKUP.exists() else 'Hide desktop icons',lambda _:self.toggle_desktop_icons())
+  collection.append(self.icons_button)
+  collection.append(label('Hides the GNOME desktop-icons extension, including its file and special icons. Restore brings them back.','muted'))
   arrange=self.panel(page,'LAYOUT')
+  self.switch(arrange,'Show widget borders','widget_borders')
   self.arrange_switch=self.switch(arrange,'Arrange widgets','arrange','Cards rise above windows. Drag their title or empty area, then turn this off.')
   arrange.append(button('Reset card positions',lambda _:self.action(lambda:(update({'positions':{}}),'Card positions reset.')[1])))
   self.autostart=Gtk.Switch(active=backend.autostart_enabled());self.autostart.connect('notify::active',self.autostart_changed)
@@ -382,6 +391,26 @@ class Studio(Adw.ApplicationWindow):
   self.note_buffer=Gtk.TextBuffer();self.note_buffer.set_text(load()['notes'])
   editor=Gtk.TextView(buffer=self.note_buffer,wrap_mode=Gtk.WrapMode.WORD_CHAR,height_request=120,top_margin=10,bottom_margin=10,left_margin=10,right_margin=10)
   notes.append(editor);notes.append(button('Save note',lambda _:self.save_note(),'accent-button'))
+ def choose_collection_folder(self):
+  chooser=Gtk.FileChooserNative.new('Choose collection folder',self,Gtk.FileChooserAction.SELECT_FOLDER,'Choose','Cancel')
+  def selected(dialog,response):
+   if response==Gtk.ResponseType.ACCEPT:
+    file=dialog.get_file();path=file.get_path() if file else None
+    if path:update({'collection_folder':path});self.collection_folder_label.set_text(path)
+   dialog.destroy()
+  chooser.connect('response',selected);chooser.show();self.collection_chooser=chooser
+ def toggle_desktop_icons(self):
+  self.icons_button.set_sensitive(False)
+  def work():
+   try:message=desktop_icons.restore() if desktop_icons.BACKUP.exists() else desktop_icons.hide()
+   except (OSError,ValueError,RuntimeError) as error:message=str(error)
+   GLib.idle_add(self.icons_finished,message)
+  threading.Thread(target=work,daemon=True).start()
+ def icons_finished(self,message):
+  if self.closed:return GLib.SOURCE_REMOVE
+  self.icons_button.set_sensitive(True)
+  self.icons_button.set_label('Restore desktop icons' if desktop_icons.BACKUP.exists() else 'Hide desktop icons')
+  self.notify(message);return GLib.SOURCE_REMOVE
  def keep_awake_changed(self,control,_):
   try:self.notify(keep_awake.set_enabled(control.get_active()))
   except (OSError,RuntimeError) as error:

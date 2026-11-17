@@ -9,6 +9,7 @@ import math
 import shutil
 from pomodoro import Pomodoro
 from orbit_card import Orbit
+from desktop_collection import entries as collection_entries
 from logtime_orbit import values as orbit_values
 from datetime import datetime
 from pathlib import Path
@@ -90,10 +91,47 @@ class Dashboard(Gtk.Window):
   self.choice.connect('changed',self.select_wallpaper)
   self.art.connect('size-allocate',self.resize_art)
   self.choice.set_active(0)
-  self.desktop_cards = [log,links,clock,stats,cal,notice,launcher,pomo]
+  collection=self.card(right,'DESKTOP COLLECTION')
+  self.collection_list=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4);collection.pack_start(self.collection_list,False,False,0)
+  self.collection_status=self.label(collection,'Loading…','small')
+  actions=Gtk.Box(spacing=6,halign=Gtk.Align.CENTER);collection.pack_start(actions,False,False,0)
+  self.button(actions,'Previous',lambda _:self.collection_page_change(-1))
+  self.button(actions,'Next',lambda _:self.collection_page_change(1))
+  self.button(actions,'Files ↗',lambda _:self.open_link(Path(load_preferences()['collection_folder']).expanduser().absolute().as_uri()))
+  self.collection_paths=[];self.collection_page=0;self.collection_busy=False;self.collection_folder=None
+  self.desktop_cards = [log,links,clock,stats,cal,notice,launcher,pomo,collection]
+  self.refresh_collection();self.timers.append(GLib.timeout_add_seconds(5,self.refresh_collection))
   self.tick(); self.refresh()
   self.timers.append(GLib.timeout_add_seconds(1,self.tick))
   self.timers.append(GLib.timeout_add_seconds(300,self.refresh))
+ def refresh_collection(self):
+  prefs=load_preferences()
+  if self.collection_busy or not prefs['visible']['collection']:return GLib.SOURCE_CONTINUE
+  self.collection_busy=True;folder=prefs['collection_folder']
+  def worker():
+   try:paths=collection_entries(folder);error=None
+   except OSError as exc:paths=[];error=str(exc)
+   GLib.idle_add(self.collection_ready,folder,paths,error)
+  threading.Thread(target=worker,daemon=True).start()
+  return GLib.SOURCE_CONTINUE
+ def collection_ready(self,folder,paths,error):
+  self.collection_busy=False
+  if not self.alive:return GLib.SOURCE_REMOVE
+  if folder!=load_preferences()['collection_folder']:return GLib.SOURCE_REMOVE
+  if paths!=self.collection_paths or folder!=self.collection_folder or error:
+   if folder!=self.collection_folder:self.collection_page=0
+   self.collection_paths=paths;self.collection_folder=folder;self.collection_page_change(0)
+  if error:self.collection_status.set_text('Folder unavailable');self.collection_status.set_tooltip_text(error)
+  return GLib.SOURCE_REMOVE
+ def collection_page_change(self,step):
+  pages=max(1,(len(self.collection_paths)+5)//6)
+  self.collection_page=max(0,min(pages-1,self.collection_page+step))
+  for child in self.collection_list.get_children():self.collection_list.remove(child)
+  for path in self.collection_paths[self.collection_page*6:self.collection_page*6+6]:
+   item=self.button(self.collection_list,path.name,lambda _,chosen=path:self.open_link(chosen.absolute().as_uri()))
+   item.get_child().set_ellipsize(3);item.get_child().set_max_width_chars(25);item.set_tooltip_text(str(path))
+  self.collection_list.show_all()
+  self.collection_status.set_text(f'{len(self.collection_paths)} items · {self.collection_page+1}/{pages}' if self.collection_paths else 'Folder is empty')
  def mark_today(self):
   now=datetime.now();year,month,day=self.calendar_view.get_date()
   self.calendar_view.clear_marks()

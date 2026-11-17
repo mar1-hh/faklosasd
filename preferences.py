@@ -8,9 +8,9 @@ from copy import deepcopy
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 FILE=ROOT/'state/preferences.json'
-WIDGETS={'logtime':'Logtime','links':'Quick links','clock':'Clock','system':'System monitor','calendar':'Calendar','notes':'Notes','launcher':'App launcher','pomodoro':'Pomodoro'}
+WIDGETS={'logtime':'Logtime','links':'Quick links','clock':'Clock','system':'System monitor','calendar':'Calendar','notes':'Notes','launcher':'App launcher','pomodoro':'Pomodoro','collection':'Desktop collection'}
 ACCENTS={'Rose':'#dfa1c6','Violet':'#b9a0fa','Teal':'#73d7c2','Amber':'#ebbd7e','Blue':'#8ebff0'}
-DEFAULTS={'pomodoro_focus':25,'pomodoro_short':5,'pomodoro_long':15,'pomodoro_notifications':True,'pomodoro_sound':False,'pomodoro_auto_start':False,'scale':1.3,'opacity':0.92,'margin':24,'target_hours':120,'accent':'Rose','auto_accent':True,'accent_color':'#dfa1c6','active_wallpaper':'','clock_seconds':False,'arrange':False,'keep_awake_enabled':True,'terminal_match':False,'terminal_transparency':25,'studio_transparency':8,'notes':'Make something meaningful.\nOne session at a time.','username':'','wallpaper_folder':str(ROOT/'wallpapers'),'visible':{name:True for name in WIDGETS},'positions':{}}
+DEFAULTS={'widget_borders':True,'collection_folder':str(Path.home()/'Desktop'),'pomodoro_focus':25,'pomodoro_short':5,'pomodoro_long':15,'pomodoro_notifications':True,'pomodoro_sound':False,'pomodoro_auto_start':False,'scale':1.3,'opacity':0.92,'margin':24,'target_hours':120,'accent':'Rose','auto_accent':True,'accent_color':'#dfa1c6','active_wallpaper':'','clock_seconds':False,'arrange':False,'keep_awake_enabled':True,'terminal_match':False,'terminal_transparency':25,'studio_transparency':8,'notes':'Make something meaningful.\nOne session at a time.','username':'','wallpaper_folder':str(ROOT/'wallpapers'),'visible':{name:name!='collection' for name in WIDGETS},'positions':{}}
 def normalize(data):
  if not isinstance(data,dict):data={}
  result=deepcopy(DEFAULTS)
@@ -21,14 +21,14 @@ def normalize(data):
   except (TypeError,ValueError):pass
  result['margin']=int(result['margin'])
  result['terminal_transparency']=round(result['terminal_transparency'])
- for key in ('pomodoro_notifications','pomodoro_sound','pomodoro_auto_start','clock_seconds','arrange','auto_accent','keep_awake_enabled','terminal_match'):result[key]=data.get(key,DEFAULTS[key]) is True
- for key,limit in [('notes',2000),('username',64),('wallpaper_folder',4096),('active_wallpaper',4096)]:
+ for key in ('widget_borders','pomodoro_notifications','pomodoro_sound','pomodoro_auto_start','clock_seconds','arrange','auto_accent','keep_awake_enabled','terminal_match'):result[key]=data.get(key,DEFAULTS[key]) is True
+ for key,limit in [('collection_folder',4096),('notes',2000),('username',64),('wallpaper_folder',4096),('active_wallpaper',4096)]:
   if isinstance(data.get(key),str):result[key]=data[key][:limit]
  if not re.fullmatch(r'[a-zA-Z0-9_-]*',result['username']):result['username']=''
  if data.get('accent') in ACCENTS:result['accent']=data['accent']
  if isinstance(data.get('accent_color'),str) and re.fullmatch(r'#[0-9a-fA-F]{6}',data['accent_color']):result['accent_color']=data['accent_color'].lower()
  visible=data.get('visible',{})
- if isinstance(visible,dict):result['visible']={key:visible.get(key,True) is not False for key in WIDGETS}
+ if isinstance(visible,dict):result['visible']={key:visible.get(key,DEFAULTS['visible'][key]) is not False for key in WIDGETS}
  positions=data.get('positions',{})
  if isinstance(positions,dict):
   for key,value in positions.items():

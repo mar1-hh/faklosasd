@@ -352,3 +352,11 @@ Use **Wallpapers → Add to collection…** for personal images. These imports l
 If an incoming bundled image uses the same path as your personal wallpaper, the updater stops before changing files. Import your image through **Add to collection…**, apply the imported copy, then move the original out of the repository and retry. No image is automatically deleted or overwritten.
 
 **Friends running an older updater:** import and apply their custom images through **Add to collection…**, then move only the original untracked images from `wallpapers/` to a folder outside the repository. The old updater can then install this fix using **Check for updates → Update**. Keep the originals until the imported copies are confirmed. If the message mentions modified tracked files or divergent commits, preserve that work and resolve the Git changes separately; do not reset or force-push to fix a wallpaper collection.
+
+## Borders, desktop icons and collections
+
+In **Widgets → Layout**, turn **Show widget borders** off for borderless cards. This preserves padding, transparency, opacity and saved positions.
+
+In **Widgets → Desktop collection**, use **Hide desktop icons** to hide the GNOME desktop-icons extension (DING or legacy Desktop Icons), including files and special icons such as Home and Trash. **Restore desktop icons** re-enables only the extension Neon Studio disabled. Files are never moved or deleted. The change persists across logins; uninstall restores the extension. If GNOME policy blocks extension changes or another desktop icon manager is used, the app reports the problem without claiming the icons were hidden.
+
+Enable **Desktop collection** in the widget list, then choose a folder (Desktop by default). The card lists files and folders in place, six items per page, and opens them with their default application. **Files ↗** opens the collection folder. The list refreshes in the background every five seconds, skips dotfiles, and displays at most 500 entries; use Files for larger folders. This is a folder view, not a file-moving or deletion tool. The collection starts disabled to preserve existing layouts; enable it and use **Arrange widgets** to place it where desired. Its border, accent and opacity follow the other cards.

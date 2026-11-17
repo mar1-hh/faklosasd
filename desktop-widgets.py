@@ -113,7 +113,8 @@ def apply():
  .desktop-widget button {{border-radius:8px;}}
 
  '''
- restyle=previous is None or any(prefs[key]!=previous[key] for key in ('scale','accent','auto_accent','accent_color'))
+ restyle=previous is None or any(prefs[key]!=previous[key] for key in ('scale','accent','auto_accent','accent_color','widget_borders'))
+ if not prefs['widget_borders']:style+='\n.desktop-widget .card {border-color:transparent;}'
  if restyle:css.load_from_data((style+calendar_css(accent)).encode())
  for name,win in zip(names,windows):
   width=430 if name=='launcher' else 310 if name=='clock' else 265
