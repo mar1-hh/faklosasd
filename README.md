@@ -21,7 +21,7 @@ bash install.sh
 
 HTTPS cloning this public repository does not require a GitHub account or SSH key. If you already use SSH, you can use `git@github.com:mar1-hh/faklosasd.git` as the clone URL instead. The examples assume `~/Desktop/faklosasd`; substitute your checkout's actual path if you installed elsewhere.
 
-**No sudo is used.** The installer checks existing GTK libraries, chooses existing Python interpreters for Requests and the optional pynput helper, creates a user application launcher, starts the cards and enabled keep-awake helper, and opens **Neon Studio**. It does not download system packages or edit your shell startup files.
+**No sudo is used.** The installer checks existing GTK libraries, chooses existing Python interpreters for Requests and the built-in X11 keep-awake helper, creates a user application launcher, starts the cards and enabled keep-awake helper, and opens **Neon Studio**. It does not download system packages or edit your shell startup files.
 
 After installation, search for **Neon Studio** in Applications, or run from the checkout:
 
@@ -109,7 +109,7 @@ Required on the machine:
 - GNOME's `gsettings`, user `systemctl`, and standard `pgrep` tools.
 - An active GNOME Shell user service for personal-profile wallpaper changes.
 
-The campus workstation used for development already had the GTK prerequisites. The installer reports missing libraries instead of attempting a privileged installation. Keep awake requires a Python interpreter with `pynput`; its interpreter is selected separately from the GUI and logtime interpreter.
+The campus workstation used for development already had the GTK prerequisites. The installer reports missing libraries instead of attempting a privileged installation. Keep awake uses Python’s standard library plus the existing X11/XTest libraries (`libX11.so.6` and `libXtst.so.6`). No `pynput` installation is needed.
 
 If only Requests is missing, use a local virtual environment:
 
@@ -289,21 +289,17 @@ The GTK calendar's day grid, header and selected-day background are transparent.
 
 The app now bundles the behavior of your supplied `sc.py`. **Widgets → Keep awake at login** is **on by default** for new and existing settings that have no saved choice. Its original behavior is preserved: a brief Shift press/release every 30 seconds for up to 60 minutes per login. Those events go to the focused application, as in the original script.
 
-Run `bash install.sh` once after updating. The installer finds a Python with `pynput`, pins its absolute path in the Git-ignored `keep-awake-python` symlink, and adds `~/.config/autostart/neon-keep-awake.desktop` with zero added login delay. Normal installation starts a run now; `--no-start` registers it for the next login without starting it now. The helper is independent of whether the cards themselves start at login.
+Installation (including an in-app update) registers keep awake using `/usr/bin/python3`, pins it in the Git-ignored `keep-awake-python` symlink, and adds `~/.config/autostart/neon-keep-awake.desktop` with zero added login delay. Normal installation starts a run now; `--no-start` registers it for the next login without starting it now. The helper is independent of whether the cards themselves start at login.
 
 Turning the switch **off** stops the current helper, releases Shift as cleanup, and removes its login entry. Turning it **on** starts a new 60-minute run and enables future login startup. Your off choice survives updates and reinstalling. Closing Neon Studio or stopping the desktop cards leaves this separate helper running until its duration expires; use its own switch to stop it. Its status label distinguishes running, off, completed and dependency errors.
 
 No duplicate helper instances are allowed. If you installed the earlier standalone `sc-login` startup entry, the app installer backs up and replaces only that marked entry, stopping the known old Desktop script before starting the bundled version. Your original `~/Desktop/sc.py` is left unchanged, and the app no longer depends on that external file.
 
-If no installed interpreter contains pynput, the rest of the app still installs and reports the missing keep-awake dependency. Install it into your own virtual environment if needed:
+Keep awake no longer requires `pynput`, pip, a virtual environment, network downloads, or sudo. The bundled backend uses X11/XTest through Python’s standard-library `ctypes` and skips its event if the user is already holding left Shift. Existing custom Python pins still work without pynput if their Python installation includes ctypes.
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt -r requirements-keep-awake.txt
-NEON_LOGTIME_PYTHON="$PWD/.venv/bin/python" NEON_KEEP_AWAKE_PYTHON="$PWD/.venv/bin/python" bash install.sh
-```
+Friends who previously saw a missing-pynput error should install this version through **Tools → Updates**. The update registers startup for their next login. To start immediately if the old helper was not running, switch **Keep awake at login** off and on once. If it was already running, the updater restarts it with the remaining duration. An explicitly disabled preference stays disabled.
 
-The helper uses pynput's X11 keyboard backend on the target campus desktop; Wayland may restrict synthetic keyboard events. It does not change system power/lock policies or use sudo.
+An active **X11 session** with working display authentication and XTest is required. Wayland is reported as unsupported; this feature does not change system power/lock policies. If the system X11 libraries are missing, the app reports that specific limitation rather than trying to install system packages.
 
 Logs and status remain private in `state/keep-awake.log`, `state/keep-awake-status.json`, and `state/keep-awake.pid`. The helper checks the enabled preference at least once per second and handles termination with a best-effort Shift release. `uninstall.sh` stops it and removes only its owned login entry.
 

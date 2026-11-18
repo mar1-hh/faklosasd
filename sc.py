@@ -59,8 +59,8 @@ def main(argv=None):
    for variable in ('DISPLAY','XAUTHORITY','WAYLAND_DISPLAY','XDG_SESSION_TYPE'):
     if variable in session:os.environ[variable]=session[variable]
     else:os.environ.pop(variable,None)
-   from pynput.keyboard import Controller,Key
-   controller=Controller();key=Key.shift
+   from keep_awake_input import X11Keyboard
+   controller=X11Keyboard();key='shift'
    if args.managed and 'NEON_KEEP_AWAKE_UNTIL' in os.environ:
     resume=float(os.environ['NEON_KEEP_AWAKE_UNTIL'])
     if resume and resume<=time.time():return 0
@@ -79,7 +79,7 @@ def main(argv=None):
    return 1
   finally:
    if controller is not None:
-    try:controller.release(key)
+    try:controller.close()
     except Exception:pass
    try:(STATE/'keep-awake.pid').unlink()
    except FileNotFoundError:pass

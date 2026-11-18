@@ -1,2 +1,3 @@
-# Optional interpreter dependency for the default-enabled personal sc.py feature.
-pynput>=1.7,<2
+# Kept for compatibility with older setup commands.
+# Keep awake now uses Python ctypes and existing system X11/XTest libraries.
+# No pip dependencies are required.

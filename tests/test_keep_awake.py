@@ -93,4 +93,9 @@ class KeepAwakeTests(unittest.TestCase):
   legacy=keep_awake.entry_path().parent/'neon-sc-login.desktop';legacy.parent.mkdir(parents=True);legacy.write_text('X-Neon-SC-Managed=true\n')
   with patch.object(keep_awake.subprocess,'run',side_effect=OSError('no process scanner')):keep_awake.migrate_standalone()
   self.assertFalse(legacy.exists());self.assertTrue((self.root/'state/standalone-sc-startup-before.desktop').exists())
+ def test_missing_old_pynput_pin_uses_system_python(self):
+  (self.root/'keep-awake-python').unlink()
+  self.assertEqual(keep_awake.interpreter(),Path('/usr/bin/python3'))
+  keep_awake.configure_startup(True)
+  self.assertIn('/usr/bin/python3',keep_awake.entry_path().read_text())
 if __name__=='__main__':unittest.main()

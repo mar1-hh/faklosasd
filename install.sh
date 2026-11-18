@@ -27,20 +27,9 @@ if [[ -z "$TRACKER_PYTHON" ]]; then
   exit 1
 fi
 ln -sfn -- "$TRACKER_PYTHON" python
-KEEP_AWAKE_PYTHON=
-for candidate in "${NEON_KEEP_AWAKE_PYTHON:-}" "$TRACKER_PYTHON" /usr/bin/python3 "$(command -v python3 || true)"; do
-  [[ -n "$candidate" && -x "$candidate" ]] || continue
-  if selected=$("$candidate" -c 'import importlib.util,sys; sys.exit(1) if importlib.util.find_spec("pynput") is None else print(sys.executable)' 2>/dev/null); then
-    KEEP_AWAKE_PYTHON="$selected"
-    break
-  fi
-done
-if [[ -n "$KEEP_AWAKE_PYTHON" ]]; then
-  ln -sfn -- "$KEEP_AWAKE_PYTHON" keep-awake-python
-  /usr/bin/python3 keep_awake.py install
-else
-  echo 'Optional keep-awake dependency pynput is missing. See README → Keep awake.' >&2
-fi
+# Keep awake uses Python's standard library and GNOME's existing X11 libraries.
+ln -sfn -- /usr/bin/python3 keep-awake-python
+/usr/bin/python3 keep_awake.py install
 /usr/bin/python3 -c 'from studio_backend import backup_preferences; backup_preferences()'
 /usr/bin/python3 install-settings.py
 /usr/bin/python3 updater.py register

@@ -16,7 +16,7 @@ def desktop_quote(value):
  return '"'+str(value).replace('\\','\\\\').replace('"','\\"').replace('`','\\`').replace('$','\\$').replace('%','%%')+'"'
 def interpreter():
  path=ROOT/'keep-awake-python'
- if not path.exists():raise RuntimeError('Keep-awake needs a Python with pynput. Run install.sh; see README → Keep awake.')
+ if not path.exists():return Path('/usr/bin/python3')
  return path.resolve()
 def configure_startup(enabled):
  entry=entry_path()
@@ -58,7 +58,6 @@ def set_enabled(enabled):
  return start() if enabled else stop()
 def status_text():
  if not load()['keep_awake_enabled']:return 'Off · disabled for this session and future logins.'
- if not (ROOT/'keep-awake-python').exists():return 'Enabled · pynput is missing. Run install.sh after installing the optional dependency.'
  try:status=json.loads((ROOT/'state/keep-awake-status.json').read_text())
  except (OSError,ValueError):status={}
  if running_pid():
