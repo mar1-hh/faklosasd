@@ -109,7 +109,7 @@ Required on the machine:
 - GNOME's `gsettings`, user `systemctl`, and standard `pgrep` tools.
 - An active GNOME Shell user service for personal-profile wallpaper changes.
 
-The campus workstation used for development already had the GTK prerequisites. The installer reports missing libraries instead of attempting a privileged installation. Keep awake uses Python’s standard library plus the existing X11/XTest libraries (`libX11.so.6` and `libXtst.so.6`). No `pynput` installation is needed.
+The campus workstation used for development already had the GTK prerequisites. The installer reports missing libraries instead of attempting a privileged installation. Keep awake uses Python ctypes and the existing system X11/XTest libraries. No `pynput` installation is needed.
 
 If only Requests is missing, use a local virtual environment:
 
@@ -285,26 +285,23 @@ Clicking a gallery thumbnail now applies that exact image and its automatic acce
 The GTK calendar's day grid, header and selected-day background are transparent. The card surface remains, and selected dates use the current accent color rather than a filled rectangle. Restart the cards once to load the new styling.
 
 
-## Keep awake — built-in sc.py feature
+## Keep awake — periodic keyboard events
 
-The app now bundles the behavior of your supplied `sc.py`. **Widgets → Keep awake at login** is **on by default** for new and existing settings that have no saved choice. Its original behavior is preserved: a brief Shift press/release every 30 seconds for up to 60 minutes per login. Those events go to the focused application, as in the original script.
+**Widgets → Keep awake at login** sends a brief Shift press/release every 30 seconds, using the existing X11/XTest libraries through Python ctypes. No pynput, pip or sudo is required. It skips the event when left Shift is already held. Events go to the focused application, as in the original script.
 
-Installation (including an in-app update) registers keep awake using `/usr/bin/python3`, pins it in the Git-ignored `keep-awake-python` symlink, and adds `~/.config/autostart/neon-keep-awake.desktop` with zero added login delay. Normal installation starts a run now; `--no-start` registers it for the next login without starting it now. The helper is independent of whether the cards themselves start at login.
+The default duration is **0 (until turned off)**, fixing the previous automatic stop after 60 minutes. Set **Duration in minutes** in Widgets for a finite run; changes apply on the next start. Your explicit off preference is preserved. Closing settings or stopping cards does not stop this separate helper.
 
-Turning the switch **off** stops the current helper, releases Shift as cleanup, and removes its login entry. Turning it **on** starts a new 60-minute run and enables future login startup. Your off choice survives updates and reinstalling. Closing Neon Studio or stopping the desktop cards leaves this separate helper running until its duration expires; use its own switch to stop it. Its status label distinguishes running, off, completed and dependency errors.
+An active X11 session is required. This sends keyboard events only; it does not change GNOME lock settings or request an idle inhibitor. Manual locking remains available, and system policies may still lock the screen.
 
-No duplicate helper instances are allowed. If you installed the earlier standalone `sc-login` startup entry, the app installer backs up and replaces only that marked entry, stopping the known old Desktop script before starting the bundled version. Your original `~/Desktop/sc.py` is left unchanged, and the app no longer depends on that external file.
+After updating, close settings and run:
 
-Keep awake no longer requires `pynput`, pip, a virtual environment, network downloads, or sudo. The bundled backend uses X11/XTest through Python’s standard-library `ctypes` and skips its event if the user is already holding left Shift. Existing custom Python pins still work without pynput if their Python installation includes ctypes.
+```bash
+cd ~/Desktop/faklosasd
+/usr/bin/python3 -c 'from keep_awake import stop; print(stop())'
+bash restart-widgets.sh
+```
 
-Friends who previously saw a missing-pynput error should install this version through **Tools → Updates**. The update registers startup for their next login. To start immediately if the old helper was not running, switch **Keep awake at login** off and on once. If it was already running, the updater restarts it with the remaining duration. An explicitly disabled preference stays disabled.
-
-An active **X11 session** with working display authentication and XTest is required. Wayland is reported as unsupported; this feature does not change system power/lock policies. If the system X11 libraries are missing, the app reports that specific limitation rather than trying to install system packages.
-
-Logs and status remain private in `state/keep-awake.log`, `state/keep-awake-status.json`, and `state/keep-awake.pid`. The helper checks the enabled preference at least once per second and handles termination with a best-effort Shift release. `uninstall.sh` stops it and removes only its owned login entry.
-
-Regression tests use a fake keyboard/controller and clock; they never send actual key events.
-
+The status should say **Running · Shift every 30 seconds**. Switching off or uninstalling stops the helper; cleanup releases any Shift event it sent. A singleton lock prevents duplicates. Logs and status are private under `state/keep-awake.log` and `state/keep-awake-status.json`.
 
 ## Transparent, wallpaper-matched GNOME Terminal
 

@@ -10,11 +10,11 @@ ROOT=Path(__file__).resolve().parent
 FILE=ROOT/'state/preferences.json'
 WIDGETS={'logtime':'Logtime','links':'Quick links','clock':'Clock','system':'System monitor','calendar':'Calendar','notes':'Notes','launcher':'App launcher','pomodoro':'Pomodoro','collection':'Desktop collection'}
 ACCENTS={'Rose':'#dfa1c6','Violet':'#b9a0fa','Teal':'#73d7c2','Amber':'#ebbd7e','Blue':'#8ebff0'}
-DEFAULTS={'widget_borders':True,'collection_folder':str(Path.home()/'Desktop'),'pomodoro_focus':25,'pomodoro_short':5,'pomodoro_long':15,'pomodoro_notifications':True,'pomodoro_sound':False,'pomodoro_auto_start':False,'scale':1.3,'opacity':0.92,'margin':24,'target_hours':120,'accent':'Rose','auto_accent':True,'accent_color':'#dfa1c6','active_wallpaper':'','clock_seconds':False,'arrange':False,'keep_awake_enabled':True,'terminal_match':False,'terminal_transparency':25,'studio_transparency':8,'notes':'Make something meaningful.\nOne session at a time.','username':'','wallpaper_folder':str(ROOT/'wallpapers'),'visible':{name:name!='collection' for name in WIDGETS},'positions':{}}
+DEFAULTS={'keep_awake_minutes':0,'widget_borders':True,'collection_folder':str(Path.home()/'Desktop'),'pomodoro_focus':25,'pomodoro_short':5,'pomodoro_long':15,'pomodoro_notifications':True,'pomodoro_sound':False,'pomodoro_auto_start':False,'scale':1.3,'opacity':0.92,'margin':24,'target_hours':120,'accent':'Rose','auto_accent':True,'accent_color':'#dfa1c6','active_wallpaper':'','clock_seconds':False,'arrange':False,'keep_awake_enabled':True,'terminal_match':False,'terminal_transparency':25,'studio_transparency':8,'notes':'Make something meaningful.\nOne session at a time.','username':'','wallpaper_folder':str(ROOT/'wallpapers'),'visible':{name:name!='collection' for name in WIDGETS},'positions':{}}
 def normalize(data):
  if not isinstance(data,dict):data={}
  result=deepcopy(DEFAULTS)
- for key,lo,hi in [('pomodoro_focus',1,180),('pomodoro_short',1,60),('pomodoro_long',1,120),('scale',0.8,1.8),('opacity',0.3,1),('margin',0,200),('target_hours',1,1000),('terminal_transparency',0,100),('studio_transparency',0,70)]:
+ for key,lo,hi in [('keep_awake_minutes',0,1440),('pomodoro_focus',1,180),('pomodoro_short',1,60),('pomodoro_long',1,120),('scale',0.8,1.8),('opacity',0.3,1),('margin',0,200),('target_hours',1,1000),('terminal_transparency',0,100),('studio_transparency',0,70)]:
   try:
    value=float(data.get(key,result[key]))
    if math.isfinite(value):result[key]=max(lo,min(hi,value))

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""User-supplied Shift keep-awake behavior, with Neon Studio lifecycle support."""
+"""Periodic Shift events with Neon Studio lifecycle support."""
 import argparse
 import fcntl
 import json
@@ -36,10 +36,11 @@ def run_events(controller,key,minutes=60,interval=30,enabled=lambda:True,wait=No
 
 def main(argv=None):
  parser=argparse.ArgumentParser(description='Run the personal sc.py keep-awake behavior.')
- parser.add_argument('minutes',nargs='?',type=int,default=60,help='Duration in minutes; 0 runs indefinitely.')
+ parser.add_argument('minutes',nargs='?',type=int,default=None,help='Duration in minutes; 0 runs until stopped. Managed mode uses the saved duration.')
  parser.add_argument('--interval',type=int,default=30,help='Seconds between Shift events (minimum 5).')
  parser.add_argument('--managed',action='store_true',help='Follow the Neon Studio on/off preference.')
  args=parser.parse_args(argv)
+ if args.minutes is None:args.minutes=load()['keep_awake_minutes'] if args.managed else 60
  if args.minutes<0 or args.interval<5:parser.error('minutes must be >= 0 and interval must be >= 5.')
  STATE.mkdir(exist_ok=True)
  with (STATE/'keep-awake.lock').open('a+') as lock:
@@ -53,7 +54,6 @@ def main(argv=None):
   signal.signal(signal.SIGINT,lambda *_:stopped.set())
   controller=None;key=None
   try:
-   # Import only after the lock/preferences check; tests never create real input.
    from session_environment import graphical_environment
    session=graphical_environment()
    for variable in ('DISPLAY','XAUTHORITY','WAYLAND_DISPLAY','XDG_SESSION_TYPE'):
@@ -66,9 +66,9 @@ def main(argv=None):
     if resume and resume<=time.time():return 0
     args.minutes=max(0,(resume-time.time())/60) if resume else 0
    started=time.time();ends=started+args.minutes*60 if args.minutes else None
-   write_status('running',pid=os.getpid(),started_at=started,ends_at=ends,interval=args.interval)
-   print(f'Keep-awake started: {args.minutes} minutes, Shift every {args.interval} seconds.',flush=True)
-   result=run_events(controller,key,args.minutes,args.interval,enabled=lambda:not stopped.is_set() and (not args.managed or load()['keep_awake_enabled']),wait=stopped.wait)
+   write_status('running',pid=os.getpid(),started_at=started,ends_at=ends,backend='x11-keyboard',interval=args.interval)
+   print(f'Keep-awake: Shift every {args.interval} seconds · '+(f'{args.minutes:g} minutes' if args.minutes else 'until turned off'),flush=True)
+   result=run_events(controller,key,args.minutes,args.interval,enabled=lambda:not stopped.is_set() and (not args.managed or load()['keep_awake_enabled']),wait=stopped.wait,clock=time.monotonic)
    write_status(result);print('Keep-awake '+result+'.',flush=True)
    return 0
   except Exception as error:

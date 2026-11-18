@@ -8,4 +8,4 @@
 
 - The four-series pack in `wallpapers/ANIME_PACK.json` links to Monster and Orb images on Alpha Coders and Mushoku Tensei / Naruto images on 4K Wallpapers. Downloads happen locally into Git-ignored private storage, with original creator/site rights retained. Advertised source resolutions are verified from the downloaded bytes before inclusion in the local gallery.
 
-- `sc.py` adapts the user's supplied Shift-key keep-awake script into an import-safe, stoppable app helper. Its original 60-minute duration and 30-second interval are preserved. The native input backend uses Python ctypes with system libX11 and libXtst; no Python keyboard package is required or vendored.
+- `sc.py` adapts the user's supplied Shift-key keep-awake script into an import-safe, stoppable app helper. Managed keep-awake uses periodic Shift events through Python ctypes and system X11/XTest libraries, with a configurable duration. No Python keyboard package is required.

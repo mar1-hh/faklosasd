@@ -32,7 +32,7 @@ class KeepAwakeTests(unittest.TestCase):
   keep_awake.configure_startup(True);text=keep_awake.entry_path().read_text()
   self.assertIn(str(self.root/'sc.py'),text);self.assertIn('--managed',text)
   self.assertIn('X-GNOME-Autostart-Delay=0',text)
-  self.assertIn(str(Path(sys.executable).resolve()),text)
+  self.assertIn('/usr/bin/python3',text)
  def test_disable_removes_entry_and_stops_verified_helper(self):
   keep_awake.configure_startup(True)
   with patch.object(keep_awake,'running_pid',return_value=12345),patch.object(keep_awake.os,'kill') as kill:
@@ -98,4 +98,10 @@ class KeepAwakeTests(unittest.TestCase):
   self.assertEqual(keep_awake.interpreter(),Path('/usr/bin/python3'))
   keep_awake.configure_startup(True)
   self.assertIn('/usr/bin/python3',keep_awake.entry_path().read_text())
+ def test_unlimited_run_continues_past_one_hour(self):
+  keyboard=Keyboard();clock=Clock()
+  self.assertEqual(preferences.load()['keep_awake_minutes'],0)
+  result=sc.run_events(keyboard,'shift',minutes=0,enabled=lambda:clock.value<3631,clock=clock.now,wait=clock.wait)
+  self.assertEqual(result,'disabled');self.assertEqual(clock.value,3631)
+  self.assertEqual(len(keyboard.events),242)
 if __name__=='__main__':unittest.main()

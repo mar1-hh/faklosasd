@@ -128,7 +128,7 @@ class Runtime:
             ends = self.awake.get('ends_at')
             if ends is None or ends > time.time():
                 env['NEON_KEEP_AWAKE_UNTIL'] = str(ends) if ends is not None else '0'
-                restart(self.root, [str(self.root / 'keep-awake-python'), '-u', str(self.root / 'sc.py'), '--managed'], 'keep-awake.log', env)
+                restart(self.root, ['/usr/bin/python3', '-u', str(self.root / 'sc.py'), '--managed'], 'keep-awake.log', env)
         if 'watcher' not in running: start_watcher(self.root)
 
     def restart_studio(self):

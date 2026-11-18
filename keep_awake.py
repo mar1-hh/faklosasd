@@ -15,9 +15,8 @@ def entry_path():
 def desktop_quote(value):
  return '"'+str(value).replace('\\','\\\\').replace('"','\\"').replace('`','\\`').replace('$','\\$').replace('%','%%')+'"'
 def interpreter():
- path=ROOT/'keep-awake-python'
- if not path.exists():return Path('/usr/bin/python3')
- return path.resolve()
+ # The native keyboard backend uses the system Python standard library.
+ return Path('/usr/bin/python3')
 def configure_startup(enabled):
  entry=entry_path()
  if entry.exists() and MARKER not in entry.read_text():raise RuntimeError('An unrelated keep-awake startup entry was left unchanged.')
@@ -63,9 +62,9 @@ def status_text():
  if running_pid():
   ends=status.get('ends_at')
   minutes=max(0,int((ends-time.time()+59)//60)) if ends else None
-  return 'Running · Shift every 30 seconds'+(f' · about {minutes} min remaining.' if minutes is not None else '.')
+  return (f"Running · Shift every {status.get('interval',30)} seconds" if status.get('backend')!='gnome-idle-inhibitor' else 'Restart keep awake to activate keyboard events')+(f' · about {minutes} min remaining.' if minutes is not None else ' · until turned off.')
  if status.get('state')=='error':return 'Could not start · '+status.get('message','See the keep-awake log.')
- if status.get('state')=='finished':return 'Enabled for next login · this login’s 60-minute run has finished.'
+ if status.get('state')=='finished':return 'Enabled for next login · the configured duration has finished. Toggle off/on to start again.'
  return 'Enabled for login · not currently running.'
 
 def migrate_standalone():
