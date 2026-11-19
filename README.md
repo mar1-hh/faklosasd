@@ -353,3 +353,10 @@ In **Widgets → Layout**, turn **Show widget borders** off for borderless cards
 In **Widgets → Desktop collection**, use **Hide desktop icons** to hide the GNOME desktop-icons extension (DING or legacy Desktop Icons), including files and special icons such as Home and Trash. **Restore desktop icons** re-enables only the extension Neon Studio disabled. Files are never moved or deleted. The change persists across logins; uninstall restores the extension. If GNOME policy blocks extension changes or another desktop icon manager is used, the app reports the problem without claiming the icons were hidden.
 
 Enable **Desktop collection** in the widget list, then choose a folder (Desktop by default). The card lists files and folders in place, six items per page, and opens them with their default application. **Files ↗** opens the collection folder. The list refreshes in the background every five seconds, skips dotfiles, and displays at most 500 entries; use Files for larger folders. This is a folder view, not a file-moving or deletion tool. The collection starts disabled to preserve existing layouts; enable it and use **Arrange widgets** to place it where desired. Its border, accent and opacity follow the other cards.
+
+
+### Minimal Logtime card
+
+The Logtime card uses a native open progress arc with the configured wallpaper/preset accent. The central value is total `HH:MM` (hours do not wrap at 24). Below it, the calendar icon shows today’s `HH:MM` and the stopwatch shows the live session’s `HH:MM:SS`. The circular refresh button updates the API snapshot; the live session continues between refreshes. A matching Settings icon beside it opens Neon Studio.
+
+Hover for the date range, status, configured target and percentage. These details also have accessible names without visible headings or labels. Change the target in **Neon Studio → Logtime**; appearance, opacity, borders, visibility and position still use the existing settings. The arc fills at 100% while tooltip totals can exceed the target; an unset/invalid target shows an empty arc safely.

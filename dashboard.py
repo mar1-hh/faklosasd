@@ -49,40 +49,47 @@ class Dashboard(Gtk.Window):
   middle=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=18); layout.pack_start(middle,True,True,0)
   right=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=18); right.set_size_request(265,-1); layout.pack_start(right,False,False,0)
   self.orbit=Orbit(self,left,lambda _:self.refresh(),lambda _:subprocess.Popen(['/usr/bin/python3',str(ROOT/'control-center.py')]))
-  log=self.orbit.card;self.period=self.orbit.period;self.status=self.orbit.status
-  links=self.card(left,'QUICK LINKS')
+  log=self.orbit.card
+  links=self.card(left,'')
+  Gtk.IconTheme.get_default().append_search_path(str(ROOT/'assets'))
   link_row=Gtk.Box(spacing=8,halign=Gtk.Align.CENTER);links.pack_start(link_row,False,False,0)
-  self.button(link_row,'42 Intra ↗',lambda _:self.open_link('https://profile.intra.42.fr/'))
-  self.button(link_row,'GitHub ↗',lambda _:self.open_link('https://github.com/'))
+  self.icon_button(link_row,'neon-42-symbolic','42 Intra',lambda _:self.open_link('https://profile.intra.42.fr/'))
+  self.icon_button(link_row,'neon-github-symbolic','GitHub',lambda _:self.open_link('https://github.com/'))
   self.link_status=self.label(links,'','small');self.link_status.set_no_show_all(True)
   clock=self.card(middle,''); self.clock=self.label(clock,'','clock'); self.date=self.label(clock,'','small')
   spacer=Gtk.Box(); middle.pack_start(spacer,True,True,0)
-  notice=self.card(middle,'NOTES')
+  notice=self.card(middle,'')
+  note_icon=Gtk.Image.new_from_icon_name('accessories-text-editor-symbolic',Gtk.IconSize.MENU)
+  note_icon.set_tooltip_text('Notes');note_icon.get_accessible().set_name('Notes')
+  notice.pack_start(note_icon,False,False,0)
   self.notes_text=self.label(notice,load_preferences()['notes'],'small')
   self.notes_text.set_lines(6);self.notes_text.set_ellipsize(3)
-  launcher=self.card(middle,'YOUR APPS')
+  launcher=self.card(middle,'')
   app_row=Gtk.Box(spacing=8,halign=Gtk.Align.CENTER);launcher.pack_start(app_row,False,False,0)
   for title,app in available_apps():
-   self.button(app_row,title,lambda _,selected=app:self.open_app(selected))
-  stats=self.card(right,'SYSTEM'); self.stats=self.label(stats,'Memory','small')
+   icon={'Web':'web-browser-symbolic','Files':'folder-symbolic','Terminal':'utilities-terminal-symbolic','Code':'text-editor-symbolic'}[title]
+   self.icon_button(app_row,icon,title,lambda _,selected=app:self.open_app(selected))
+  if not app_row.get_children():self.label(launcher,'No available apps','small')
+  stats=self.card(right,''); self.stats=self.metric(stats,'Memory')
   self.memory_bar=Gtk.ProgressBar();stats.pack_start(self.memory_bar,False,False,0)
-  self.system_load=self.label(stats,'Load · —','small')
-  cal=self.card(right,'CALENDAR'); calendar_view=Gtk.Calendar(halign=Gtk.Align.CENTER);self.calendar_view=calendar_view;cal.pack_start(calendar_view,False,False,0)
+  self.system_load=self.metric(stats,'Load · 1 min')
+  cal=self.card(right,''); calendar_view=Gtk.Calendar(halign=Gtk.Align.CENTER);self.calendar_view=calendar_view;cal.pack_start(calendar_view,False,False,0)
   calendar_view.connect('month-changed',lambda *_:self.mark_today())
   self.calendar_day=None
-  pomo=self.card(left,'POMODORO');self.pomodoro_card=pomo
+  pomo=self.card(left,'');self.pomodoro_card=pomo
   self.pomodoro=Pomodoro(load_preferences())
   modes=Gtk.Box(spacing=4,halign=Gtk.Align.CENTER);pomo.pack_start(modes,False,False,0)
   for title,mode in [('Focus','focus'),('Short','short'),('Long','long')]:
    self.button(modes,title,lambda _,chosen=mode:self.pomodoro_action(lambda:self.pomodoro.mode(chosen)))
-  self.pomo_mode=self.label(pomo,'Focus','small')
+  self.mode_buttons=modes.get_children()
   self.countdown=self.label(pomo,'25:00','hours')
   self.pomo_bar=Gtk.ProgressBar();pomo.pack_start(self.pomo_bar,False,False,0)
   self.pomo_rounds=self.label(pomo,'○ ○ ○ ○','small')
   controls=Gtk.Box(spacing=5,halign=Gtk.Align.CENTER);pomo.pack_start(controls,False,False,0)
   self.pomo_start=self.button(controls,'Start',lambda _:self.pomodoro_action(self.pomodoro.toggle))
-  self.button(controls,'Reset',lambda _:self.pomodoro_action(self.pomodoro.reset))
-  self.button(controls,'Skip',lambda _:self.pomodoro_action(self.pomodoro.skip))
+  self.pomo_start.get_style_context().add_class('primary-action')
+  self.icon_button(controls,'view-refresh-symbolic','Reset timer',lambda _:self.pomodoro_action(self.pomodoro.reset))
+  self.icon_button(controls,'media-skip-forward-symbolic','Skip session',lambda _:self.pomodoro_action(self.pomodoro.skip))
   papers=self.card(right,'4K WALLPAPER COLLECTION')
   self.choice=Gtk.ComboBoxText(); self.paths=sorted((ROOT/'wallpapers').glob('*.png'))
   for path in self.paths:self.choice.append_text(path.stem[3:].replace('-',' ').title())
@@ -91,13 +98,13 @@ class Dashboard(Gtk.Window):
   self.choice.connect('changed',self.select_wallpaper)
   self.art.connect('size-allocate',self.resize_art)
   self.choice.set_active(0)
-  collection=self.card(right,'DESKTOP COLLECTION')
+  collection=self.card(right,'')
   self.collection_list=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=4);collection.pack_start(self.collection_list,False,False,0)
   self.collection_status=self.label(collection,'Loading…','small')
   actions=Gtk.Box(spacing=6,halign=Gtk.Align.CENTER);collection.pack_start(actions,False,False,0)
-  self.button(actions,'Previous',lambda _:self.collection_page_change(-1))
-  self.button(actions,'Next',lambda _:self.collection_page_change(1))
-  self.button(actions,'Files ↗',lambda _:self.open_link(Path(load_preferences()['collection_folder']).expanduser().absolute().as_uri()))
+  self.icon_button(actions,'go-previous-symbolic','Previous page',lambda _:self.collection_page_change(-1))
+  self.icon_button(actions,'go-next-symbolic','Next page',lambda _:self.collection_page_change(1))
+  self.icon_button(actions,'folder-open-symbolic','Open collection folder',lambda _:self.open_link(Path(load_preferences()['collection_folder']).expanduser().absolute().as_uri()))
   self.collection_paths=[];self.collection_page=0;self.collection_busy=False;self.collection_folder=None
   self.desktop_cards = [log,links,clock,stats,cal,notice,launcher,pomo,collection]
   self.refresh_collection();self.timers.append(GLib.timeout_add_seconds(5,self.refresh_collection))
@@ -142,7 +149,13 @@ class Dashboard(Gtk.Window):
   self.pomodoro.prefs=load_preferences();ended=self.pomodoro.tick()
   s=self.pomodoro.state;remaining=math.ceil(self.pomodoro.remaining())
   self.countdown.set_text(f'{remaining//60:02d}:{remaining%60:02d}')
-  self.pomo_mode.set_text({'focus':'Focus','short':'Short Break','long':'Long Break · four focus sessions complete' if s['completed']==4 else 'Long Break'}[s['mode']])
+  for item,mode in zip(self.mode_buttons,('focus','short','long')):
+   style=item.get_style_context()
+   if mode==s['mode']:style.add_class('current-mode')
+   else:style.remove_class('current-mode')
+   description={'focus':'Focus','short':'Short break','long':'Long break'}[mode]
+   if mode==s['mode']:description+=' · current mode'
+   item.set_tooltip_text(description);item.get_accessible().set_name(description)
   self.pomo_start.set_label('Pause' if s['running'] else 'Start')
   self.pomo_bar.set_fraction(max(0,min(1,1-self.pomodoro.remaining()/s['duration'])))
   self.pomo_rounds.set_text(' '.join('●' if i<s['completed'] else '○' for i in range(4)))
@@ -182,10 +195,15 @@ class Dashboard(Gtk.Window):
   label=Gtk.Label(label=text,xalign=0.5,justify=Gtk.Justification.CENTER); label.get_style_context().add_class(style)
   label.set_line_wrap(True); label.set_max_width_chars(34)
   parent.pack_start(label,False,False,0); return label
+ def metric(self,parent,title):
+  row=Gtk.Box(spacing=8);parent.pack_start(row,False,False,0)
+  caption=self.label(row,title,'small');caption.set_xalign(0);caption.set_hexpand(True)
+  value=self.label(row,'—','orbit-value');value.set_xalign(1)
+  return value
  def button(self,parent,text,callback):
   b=Gtk.Button(label=text);b.connect('clicked',callback);parent.pack_start(b,False,False,0);return b
  def icon_button(self,parent,icon,title,callback):
-  b=Gtk.Button.new_from_icon_name(icon,Gtk.IconSize.BUTTON);b.set_tooltip_text(title);b.get_accessible().set_name(title);b.connect('clicked',callback);parent.pack_start(b,False,False,0)
+  b=Gtk.Button.new_from_icon_name(icon,Gtk.IconSize.BUTTON);b.get_style_context().add_class('round-action');b.set_tooltip_text(title);b.get_accessible().set_name(title);b.connect('clicked',callback);parent.pack_start(b,False,False,0)
  def select_wallpaper(self,*_):
   self.pixbuf=GdkPixbuf.Pixbuf.new_from_file(str(self.paths[self.choice.get_active()]))
   self.render_art()
@@ -205,13 +223,13 @@ class Dashboard(Gtk.Window):
    info={line.split(':')[0]:int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith(('MemTotal:','MemAvailable:'))}
    used=100*(1-info['MemAvailable']/info['MemTotal'])
    load=Path('/proc/loadavg').read_text().split()[0]
-   self.stats.set_text(f'Memory · {used:.0f}%');self.memory_bar.set_fraction(max(0,min(1,used/100)))
-   self.system_load.set_text(f'Load average · {load}  /  1 min')
-  except (OSError,ValueError,KeyError):self.stats.set_text('System readings unavailable')
+   self.stats.set_text(f'{used:.0f}%');self.memory_bar.set_fraction(max(0,min(1,used/100)))
+   self.system_load.set_text(load)
+  except (OSError,ValueError,KeyError):self.stats.set_text('—');self.system_load.set_text('—');self.memory_bar.set_fraction(0)
   return GLib.SOURCE_CONTINUE
  def refresh(self):
   if self.busy:return GLib.SOURCE_CONTINUE
-  self.busy=True;self.status.set_text('Refreshing…')
+  self.busy=True;self.orbit.set_status('Refreshing…')
   threading.Thread(target=self.fetch,daemon=True).start()
   return GLib.SOURCE_CONTINUE
  def fetch(self):
@@ -225,10 +243,10 @@ class Dashboard(Gtk.Window):
   if not self.alive:return GLib.SOURCE_REMOVE
   if data:
    self.log_snapshot=data; self.log_stale=False
-   self.period.set_text(data['period']['start']+' → '+data['period']['end'])
+   self.orbit.set_period(data['period']['start']+' → '+data['period']['end'])
   else:self.log_stale=True
   self.render_logtime()
-  if not data and not self.log_snapshot:self.status.set_text('Logtime unavailable · try Refresh')
+  if not data and not self.log_snapshot:self.orbit.set_status('Logtime unavailable · try Refresh')
   return GLib.SOURCE_REMOVE
  def render_logtime(self):
   prefs=load_preferences()
@@ -236,11 +254,11 @@ class Dashboard(Gtk.Window):
   if not self.log_snapshot:return
   data=self.log_snapshot
   self.orbit.render(orbit_values(data,prefs.get('target_hours')),prefs['scale'])
-  if self.busy:self.status.set_text('Refreshing API · session continues')
-  elif self.log_stale:self.status.set_text('API offline · cached total + live session')
-  elif not data.get('session_detected'):self.status.set_text('Session not detected · API total only')
-  elif data.get('session_source')=='desktop process estimate':self.status.set_text('Live · session estimated from desktop')
-  else:self.status.set_text('Live · includes active session')
+  if self.busy:self.orbit.set_status('Refreshing API · session continues')
+  elif self.log_stale:self.orbit.set_status('API offline · cached total + live session')
+  elif not data.get('session_detected'):self.orbit.set_status('Session not detected · API total only')
+  elif data.get('session_source')=='desktop process estimate':self.orbit.set_status('Live · session estimated from desktop')
+  else:self.orbit.set_status('Live · includes active session')
  def close(self,*_):
   self.alive=False
   self.external_actions.close()
