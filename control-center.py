@@ -139,6 +139,13 @@ class Studio(Adw.ApplicationWindow):
   self.pack_button=button('Download / retry missing wallpapers',lambda _:self.start_anime_downloads());pack.append(self.pack_button)
   for entry in anime_pack.entries():
    pack.append(button('Source · '+entry['title'],lambda _,url=entry['source']:Gtk.show_uri(self,url,Gdk.CURRENT_TIME)))
+  rotation=self.panel(page,'ROTATION & PLAYLIST')
+  rot_actions=Gtk.Box(spacing=10);rotation.append(rot_actions)
+  rot_actions.append(button('Previous wallpaper',lambda _:self.rotate_wallpaper(-1)))
+  rot_actions.append(button('Next wallpaper',lambda _:self.rotate_wallpaper(1),'accent-button'))
+  rot_actions.append(button('Favorite wallpaper',lambda _:self.toggle_fav_wallpaper()))
+  self.slider(rotation,'Auto-rotation interval (hours, 0 = off)','rotate_hours',0,24,1)
+  rotation.append(label('When enabled, wallpapers rotate automatically across your collection folder.','muted'))
   self.bg=NativeWallpaper()
   self.wall_status=label('','status');page.append(self.wall_status)
   folders=Gtk.Box(spacing=10);page.append(folders)
@@ -234,6 +241,18 @@ class Studio(Adw.ApplicationWindow):
   return GLib.SOURCE_REMOVE
  def apply_from_gallery(self,path):
   if not self.closed:self.action(lambda:self.apply_wallpaper(path))
+ def rotate_wallpaper(self,step):
+  from wallpaper_rotation import WallpaperRotationManager
+  mgr=WallpaperRotationManager()
+  path=mgr.next_wallpaper() if step>0 else mgr.prev_wallpaper()
+  if path:self.select(path,apply=True)
+ def toggle_fav_wallpaper(self):
+  from wallpaper_rotation import WallpaperRotationManager
+  mgr=WallpaperRotationManager()
+  current=load().get('active_wallpaper')
+  if current:
+   fav=mgr.toggle_favorite(current)
+   self.notify('Added to favorites.' if fav else 'Removed from favorites.')
  def start_anime_downloads(self):
   if self.pack_busy or self.closed:return
   self.pack_busy=True;self.pack_button.set_sensitive(False)
@@ -309,6 +328,15 @@ class Studio(Adw.ApplicationWindow):
    active=load()['active_wallpaper']
    image=Path(active) if active and Path(active).is_file() else self.selected
    if image:self.match_accent(silent=True,path=image)
+ def set_theme_mode(self,mode):
+  from theme_manager import ThemeManager
+  update({'theme_mode':mode})
+  tm=ThemeManager()
+  prefs=load()
+  resolved=tm.resolve_mode(mode)
+  pal=tm.build_palette(effective_accent(prefs),resolved)
+  tm.execute_hooks(pal,prefs.get('active_wallpaper',''))
+  self.notify(f"Theme set to {mode.title()} (resolved: {resolved}).")
  def make_appearance(self):
   page=self.page('appearance','Appearance','Soft surfaces, readable type, and an accent that feels like you.')
   group=self.panel(page,'COLOR')
@@ -320,6 +348,10 @@ class Studio(Adw.ApplicationWindow):
   self.auto_color_switch.connect('notify::active',self.auto_color_changed)
   self.row(group,'Automatically match wallpaper',self.auto_color_switch,'Use the strongest wallpaper hue when applying an image. A fixed preset turns this off.')
   self.bindings['auto_accent']=(self.auto_color_switch,'switch',1)
+  mode_box=Gtk.Box(spacing=10);group.append(mode_box)
+  mode_box.append(label('Theme mode:','muted'))
+  for m in ('dark','light','auto'):
+   mode_box.append(button(m.title(),lambda _,mode=m:self.set_theme_mode(mode)))
   self.accent_readout=label('','muted');group.append(self.accent_readout)
   group.append(label('Colors apply to your widgets, Neon Studio and optionally GNOME Terminal below.','muted'))
   sizing=self.panel(page,'SCALE & TRANSPARENCY')
@@ -377,22 +409,56 @@ class Studio(Adw.ApplicationWindow):
   collection.append(label('Hides the GNOME desktop-icons extension, including its file and special icons. Restore brings them back.','muted'))
   arrange=self.panel(page,'LAYOUT')
   self.switch(arrange,'Show widget borders','widget_borders')
+  self.switch(arrange,'Snap widgets to grid','grid_snap','Align cards to a desktop grid when dragged.')
+  self.slider(arrange,'Grid size (px)','grid_size',8,64,4)
   self.arrange_switch=self.switch(arrange,'Arrange widgets','arrange','Cards rise above windows. Drag their title or empty area, then turn this off.')
-  arrange.append(button('Reset card positions',lambda _:self.action(lambda:(update({'positions':{}}),'Card positions reset.')[1])))
+  arrange.append(button('Reset all card positions & scales',lambda _:self.action(lambda:(update({'positions':{},'widget_scales':{}}),'Card positions and sizes reset.')[1])))
   self.autostart=Gtk.Switch(active=backend.autostart_enabled());self.autostart.connect('notify::active',self.autostart_changed)
   self.row(arrange,'Start cards when I log in',self.autostart)
   awake=self.panel(page,'KEEP AWAKE')
   self.keep_awake_switch=Gtk.Switch(active=load()['keep_awake_enabled'])
   self.keep_awake_switch.connect('notify::active',self.keep_awake_changed)
-  self.row(awake,'Keep awake at login',self.keep_awake_switch,'Sends a brief Shift press/release every 30 seconds while enabled.')
+  self.row(awake,'Keep awake at login',self.keep_awake_switch,'Prevents screen sleep without interfering with your typing or mouse.')
+  mode_row=Gtk.Box(spacing=10);awake.append(mode_row)
+  mode_row.append(label('Method:','muted'))
+  for mid,mname in [('mouse','Pointer excursion'),('inhibit','Session inhibitor'),('shift','Shift (legacy)')]:
+   mode_row.append(button(mname,lambda _,m=mid:self.set_awake_method(m)))
   self.slider(awake,'Duration in minutes (0 = until turned off)','keep_awake_minutes',0,1440,15)
   awake.append(label('Duration changes apply on the next start. Toggle off/on to restart now.','muted'))
   self.keep_awake_status=label(keep_awake.status_text(),'muted');awake.append(self.keep_awake_status)
   awake.append(label('Turning this off stops the current run and disables it for future logins. Closing Neon Studio does not stop it.','muted'))
+  media_panel=self.panel(page,'NOW PLAYING & MEDIA')
+  self.switch(media_panel,'Compact media card','media_compact')
+  self.switch(media_panel,'Show album name','media_show_album')
+  self.switch(media_panel,'Show playback progress bar','media_show_progress')
+  dock_panel=self.panel(page,'APPLICATION DOCK')
+  self.slider(dock_panel,'Dock icon size (px)','launcher_icon_size',20,64,2)
+  dock_orient=Gtk.Box(spacing=10);dock_panel.append(dock_orient)
+  dock_orient.append(label('Orientation:','muted'))
+  dock_orient.append(button('Horizontal',lambda _:self.action(lambda:(update({'launcher_orientation':'horizontal'}),'Dock set to horizontal.')[1])))
+  dock_orient.append(button('Vertical',lambda _:self.action(lambda:(update({'launcher_orientation':'vertical'}),'Dock set to vertical.')[1])))
+  search_panel=self.panel(page,'FILE SEARCH')
+  self.search_folder_label=label(load().get('file_search_root',str(Path.home()/'Documents')),'muted');search_panel.append(self.search_folder_label)
+  search_panel.append(button('Choose search folder…',lambda _:self.choose_search_folder()))
   notes=self.panel(page,'YOUR NOTE')
   self.note_buffer=Gtk.TextBuffer();self.note_buffer.set_text(load()['notes'])
   editor=Gtk.TextView(buffer=self.note_buffer,wrap_mode=Gtk.WrapMode.WORD_CHAR,height_request=120,top_margin=10,bottom_margin=10,left_margin=10,right_margin=10)
   notes.append(editor);notes.append(button('Save note',lambda _:self.save_note(),'accent-button'))
+ def set_awake_method(self,method):
+  update({'keep_awake_method':method})
+  if load()['keep_awake_enabled']:
+   try:keep_awake.start()
+   except RuntimeError:pass
+  self.keep_awake_status.set_text(keep_awake.status_text())
+  self.notify(f"Keep-awake method set to {method}.")
+ def choose_search_folder(self):
+  chooser=Gtk.FileChooserNative.new('Choose search folder',self,Gtk.FileChooserAction.SELECT_FOLDER,'Choose','Cancel')
+  def selected(dialog,response):
+   if response==Gtk.ResponseType.ACCEPT:
+    f=dialog.get_file();path=f.get_path() if f else None
+    if path:update({'file_search_root':path});self.search_folder_label.set_text(path)
+   dialog.destroy()
+  chooser.connect('response',selected);chooser.show();self.search_chooser=chooser
  def choose_collection_folder(self):
   chooser=Gtk.FileChooserNative.new('Choose collection folder',self,Gtk.FileChooserAction.SELECT_FOLDER,'Choose','Cancel')
   def selected(dialog,response):
@@ -472,6 +538,28 @@ class Studio(Adw.ApplicationWindow):
   group.append(button('Start desktop cards',lambda _:self.action(backend.start_widgets),'accent-button'))
   group.append(button('Stop desktop cards',lambda _:self.action(backend.stop_widgets)))
   group.append(button('Open package folder',lambda _:Gtk.show_uri(self,(ROOT).as_uri(),Gdk.CURRENT_TIME)))
+  storage=self.panel(page,'CAMPUS STORAGE & GOINFRE')
+  from goinfre import find_goinfre_root, relocate_directory, restore_directory
+  g_path=find_goinfre_root()
+  storage.append(label(f"Workstation Goinfre path: {g_path}" if g_path else "Goinfre campus storage is not available on this workstation.",'muted'))
+  if g_path:
+   anime_target=ROOT/'anime'
+   anime_relocated=anime_target.is_symlink()
+   def toggle_anime():
+    if anime_target.is_symlink():
+     ok,msg=restore_directory(anime_target)
+    else:
+     ok,msg=relocate_directory(anime_target,Path(g_path)/'neon_studio/anime')
+    self.notify(msg)
+   storage.append(button('Rollback Anime pack to home' if anime_relocated else 'Relocate Anime pack to Goinfre',lambda _:toggle_anime()))
+  cleaner_panel=self.panel(page,'SAFE CACHE CLEANER')
+  from cache_cleaner import CacheCleaner, format_size
+  cleaner=CacheCleaner()
+  items=cleaner.scan()
+  tot=sum(c['size_bytes'] for c in items)
+  self.cache_label=label(f"{len(items)} caches detected · {format_size(tot)} estimated recoverable space",'muted')
+  cleaner_panel.append(self.cache_label)
+  cleaner_panel.append(button(f"Clean safe caches ({format_size(tot)})",lambda _:self.clean_caches()))
   restore=self.panel(page,'RESTORE')
   restore.append(label('Restore the widget preferences saved before opening Neon Studio. Your files and wallpaper collection stay here.','muted'))
   restore.append(button('Restore previous widget settings',lambda _:self.restore_widgets()))
@@ -481,6 +569,18 @@ class Studio(Adw.ApplicationWindow):
   self.diagnostics=label('','muted');self.diagnostics.set_selectable(True);diagnostics.append(self.diagnostics)
   diagnostics.append(button('Refresh diagnostics',lambda _:self.refresh_diagnostics()));self.refresh_diagnostics()
   page.append(label('Neon Studio · Built for your desktop\nInspired by TrpStrata. Uses native GTK controls and your supplied logtime tracker.','muted'))
+ def clean_caches(self):
+  from cache_cleaner import CacheCleaner, format_size
+  cleaner=CacheCleaner()
+  items=cleaner.scan()
+  eligible=[c['path'] for c in items if c['eligible']]
+  if not eligible:
+   self.notify('No eligible caches to clean right now.')
+   return
+  freed,errs=cleaner.clean(eligible)
+  self.notify(f"Freed {format_size(freed)} of cache space.")
+  items=cleaner.scan()
+  self.cache_label.set_text(f"{len(items)} caches detected · {format_size(sum(c['size_bytes'] for c in items))} estimated recoverable space")
  def check_updates(self):
   if self.update_check_busy or self.installing_update:return
   try:

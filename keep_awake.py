@@ -62,7 +62,9 @@ def status_text():
  if running_pid():
   ends=status.get('ends_at')
   minutes=max(0,int((ends-time.time()+59)//60)) if ends else None
-  return (f"Running · Shift every {status.get('interval',30)} seconds" if status.get('backend')!='gnome-idle-inhibitor' else 'Restart keep awake to activate keyboard events')+(f' · about {minutes} min remaining.' if minutes is not None else ' · until turned off.')
+  method=status.get('method','mouse')
+  label={'mouse':'Pointer excursion','inhibit':'GNOME inhibitor','shift':'Shift'}.get(method,'Active')
+  return (f"Running · {label} every {status.get('interval',30)}s")+(f' · about {minutes} min remaining.' if minutes is not None else ' · until turned off.')
  if status.get('state')=='error':return 'Could not start · '+status.get('message','See the keep-awake log.')
  if status.get('state')=='finished':return 'Enabled for next login · the configured duration has finished. Toggle off/on to start again.'
  return 'Enabled for login · not currently running.'

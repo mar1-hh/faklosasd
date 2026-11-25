@@ -17,6 +17,9 @@ from live_logtime import format_hours, live_hours
 from launchers import available_apps
 from external_actions import ExternalActions
 from preferences import load as load_preferences, effective_accent
+from media_card import MediaCard
+from launcher_card import LauncherCard
+from file_search_card import FileSearchCard
 gi.require_version('Gtk','3.0')
 from gi.repository import Gtk,Gdk,GdkPixbuf,GLib,Gio
 ROOT=Path(__file__).resolve().parent
@@ -64,15 +67,13 @@ class Dashboard(Gtk.Window):
   notice.pack_start(note_icon,False,False,0)
   self.notes_text=self.label(notice,load_preferences()['notes'],'small')
   self.notes_text.set_lines(6);self.notes_text.set_ellipsize(3)
-  launcher=self.card(middle,'')
-  app_row=Gtk.Box(spacing=8,halign=Gtk.Align.CENTER);launcher.pack_start(app_row,False,False,0)
-  for title,app in available_apps():
-   icon={'Web':'web-browser-symbolic','Files':'folder-symbolic','Terminal':'utilities-terminal-symbolic','Code':'text-editor-symbolic'}[title]
-   self.icon_button(app_row,icon,title,lambda _,selected=app:self.open_app(selected))
-  if not app_row.get_children():self.label(launcher,'No available apps','small')
+  self.launcher_card=LauncherCard(self,middle,page_size=6)
+  launcher=self.launcher_card.card
   stats=self.card(right,''); self.stats=self.metric(stats,'Memory')
   self.memory_bar=Gtk.ProgressBar();stats.pack_start(self.memory_bar,False,False,0)
   self.system_load=self.metric(stats,'Load · 1 min')
+  self.disk_usage=self.metric(stats,'Disk')
+  self.disk_bar=Gtk.ProgressBar();stats.pack_start(self.disk_bar,False,False,0)
   cal=self.card(right,''); calendar_view=Gtk.Calendar(halign=Gtk.Align.CENTER);self.calendar_view=calendar_view;cal.pack_start(calendar_view,False,False,0)
   calendar_view.connect('month-changed',lambda *_:self.mark_today())
   self.calendar_day=None
@@ -106,7 +107,9 @@ class Dashboard(Gtk.Window):
   self.icon_button(actions,'go-next-symbolic','Next page',lambda _:self.collection_page_change(1))
   self.icon_button(actions,'folder-open-symbolic','Open collection folder',lambda _:self.open_link(Path(load_preferences()['collection_folder']).expanduser().absolute().as_uri()))
   self.collection_paths=[];self.collection_page=0;self.collection_busy=False;self.collection_folder=None
-  self.desktop_cards = [log,links,clock,stats,cal,notice,launcher,pomo,collection]
+  self.media_card=MediaCard(self,left)
+  self.file_search_card=FileSearchCard(self,right)
+  self.desktop_cards = [log,links,clock,stats,cal,notice,launcher,pomo,collection,self.media_card.card,self.file_search_card.card]
   self.refresh_collection();self.timers.append(GLib.timeout_add_seconds(5,self.refresh_collection))
   self.tick(); self.refresh()
   self.timers.append(GLib.timeout_add_seconds(1,self.tick))
@@ -217,6 +220,7 @@ class Dashboard(Gtk.Window):
   self.art.set_size_request(1,1)
  def tick(self):
   self.render_logtime();self.render_pomodoro()
+  if hasattr(self,'media_card'):self.media_card.render()
   now=datetime.now();prefs=load_preferences();self.notes_text.set_text(prefs['notes']);self.clock.set_text(now.strftime('%H:%M:%S' if prefs['clock_seconds'] else '%H:%M'));self.date.set_text(now.strftime('%A, %d %B'))
   if self.calendar_day!=now.date():self.calendar_day=now.date();self.mark_today()
   try:
@@ -225,7 +229,13 @@ class Dashboard(Gtk.Window):
    load=Path('/proc/loadavg').read_text().split()[0]
    self.stats.set_text(f'{used:.0f}%');self.memory_bar.set_fraction(max(0,min(1,used/100)))
    self.system_load.set_text(load)
-  except (OSError,ValueError,KeyError):self.stats.set_text('—');self.system_load.set_text('—');self.memory_bar.set_fraction(0)
+   du=shutil.disk_usage(str(Path.home()))
+   dpct=du.used/du.total
+   self.disk_usage.set_text(f'{dpct*100:.0f}% ({du.free/(1024**3):.1f}G free)')
+   self.disk_bar.set_fraction(max(0,min(1,dpct)))
+  except (OSError,ValueError,KeyError):
+   self.stats.set_text('—');self.system_load.set_text('—');self.memory_bar.set_fraction(0)
+   self.disk_usage.set_text('—');self.disk_bar.set_fraction(0)
   return GLib.SOURCE_CONTINUE
  def refresh(self):
   if self.busy:return GLib.SOURCE_CONTINUE
@@ -261,6 +271,8 @@ class Dashboard(Gtk.Window):
   else:self.orbit.set_status('Live · includes active session')
  def close(self,*_):
   self.alive=False
+  if hasattr(self,'media_card'):self.media_card.close()
+  if hasattr(self,'file_search_card'):self.file_search_card.close()
   self.external_actions.close()
   for timer in self.timers:GLib.source_remove(timer)
   Gtk.main_quit()

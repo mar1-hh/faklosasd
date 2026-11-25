@@ -27,6 +27,8 @@ if [[ -z "$TRACKER_PYTHON" ]]; then
   exit 1
 fi
 ln -sfn -- "$TRACKER_PYTHON" python
+mkdir -p "${HOME}/.local/bin"
+ln -sfn -- "$PWD/neon" "${HOME}/.local/bin/neon"
 # Keep awake uses Python ctypes and existing system X11/XTest libraries.
 ln -sfn -- /usr/bin/python3 keep-awake-python
 /usr/bin/python3 keep_awake.py install
