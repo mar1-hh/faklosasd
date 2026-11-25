@@ -1,5 +1,5 @@
 """Desktop-card placement using final allocated sizes, in monitor coordinates."""
-ORDER=('logtime','links','clock','system','calendar','notes','launcher','pomodoro','collection')
+ORDER=('logtime','links','clock','system','calendar','notes','launcher','pomodoro','collection','media','search')
 def positions(width,height,sizes,prefs):
  margin=prefs['margin'];gap=round(18*prefs['scale']);top=62
  visible=prefs['visible'];saved=prefs['positions'];result={}
@@ -16,7 +16,7 @@ def positions(width,height,sizes,prefs):
   put(name,width-sizes[name][0]-margin,right)
   if visible[name]:right+=sizes[name][1]+gap
  put('launcher',(width-sizes['launcher'][0])//2,height-sizes['launcher'][1]-24)
- for extra in ('pomodoro','collection'):
+ for extra in ('pomodoro','collection','media','search'):
   if extra not in sizes:continue
   pw,ph=sizes[extra]
   # Prefer the left edge; on smaller displays search free space along card edges.

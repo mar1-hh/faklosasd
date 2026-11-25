@@ -10,7 +10,7 @@ import gi
 from preferences import load,update,ACCENTS,WIDGETS,effective_accent
 from widget_layout import positions as layout_positions
 from wallpaper_palette import tinted_surface
-from widget_styles import calendar_css
+from widget_styles import calendar_css, design_system_css
 gi.require_version('Gtk','3.0')
 from gi.repository import Gtk,Gdk,GLib
 ROOT=Path(__file__).resolve().parent
@@ -51,7 +51,12 @@ def resized(win,allocation,name):
 def save_position(name,win):
  sources.pop(name,None)
  if name in dragging and load()['arrange']:
-  x,y=win.get_position();prefs=load();prefs['positions'][name]=[max(0,x-geometry.x),max(0,y-geometry.y)];update({'positions':prefs['positions']})
+  x,y=win.get_position();prefs=load()
+  rx,ry=x-geometry.x,y-geometry.y
+  if prefs.get('grid_snap'):
+   gs=prefs.get('grid_size',24)
+   rx,ry=round(rx/gs)*gs,round(ry/gs)*gs
+  prefs['positions'][name]=[max(0,rx),max(0,ry)];update({'positions':prefs['positions']})
  dragging.discard(name)
  return GLib.SOURCE_REMOVE
 def queue_save(name,win):
@@ -110,17 +115,25 @@ def apply():
  .desktop-widget button.current-mode {{color:{accent};border-color:{accent};background:alpha({accent},0.22);}}
  .desktop-widget .focus-mode .hours {{color:{accent};}}
  .desktop-widget button {{border-radius:8px;}}
-
+ .desktop-widget .launcher-search-entry {{background:alpha({accent},0.08);border:1px solid alpha({accent},0.24);border-radius:10px;color:#f5fbff;font-size:{round(12*scale)}px;padding:4px 8px;}}
+ .desktop-widget .launcher-app-btn {{border-radius:12px;padding:{round(6*scale)}px;background:transparent;border:1px solid transparent;}}
+ .desktop-widget .launcher-app-btn:hover {{background:alpha({accent},0.20);border-color:alpha({accent},0.35);}}
+ .desktop-widget .launcher-app-label {{font-size:{round(10*scale)}px;color:#e7dfe6;margin-top:2px;}}
+ .desktop-widget .file-search-row {{background:alpha({accent},0.04);border-radius:8px;padding:2px;}}
+ .desktop-widget .file-search-row:hover {{background:alpha({accent},0.15);}}
  '''
  restyle=previous is None or any(prefs[key]!=previous[key] for key in ('scale','accent','auto_accent','accent_color','widget_borders'))
  if not prefs['widget_borders']:style+='\n.desktop-widget .card {border-color:transparent;}'
- if restyle:css.load_from_data((style+calendar_css(accent)).encode())
+ if restyle:css.load_from_data((style+calendar_css(accent)+design_system_css(scale,accent)).encode())
  for name,win in zip(names,windows):
-  width=310 if name=='clock' else 265
-  if previous is None or scale!=previous['scale']:
-   win.get_child().set_spacing(round(8*scale));win.get_child().set_size_request(round(width*scale),-1)
-   win.resize(round(width*scale),1)
-  win.set_opacity(prefs['opacity'])
+  width=310 if name=='clock' else 440 if name=='launcher' else 290 if name in ('media','search') else 265
+  w_scale=scale*prefs.get('widget_scales',{}).get(name,1.0)
+  if previous is None or scale!=previous['scale'] or prefs.get('widget_scales')!=(previous.get('widget_scales') if previous else {}):
+   win.get_child().set_spacing(round(8*w_scale));win.get_child().set_size_request(round(width*w_scale),-1)
+   win.resize(round(width*w_scale),1)
+  # Keep media artwork and text opaque; its surface applies the saved opacity.
+  if name=='media':win.set_opacity(1.0)
+  else:win.set_opacity(prefs['opacity'])
   if prefs['visible'][name]:win.show_all()
   else:win.hide()
   win.set_keep_below(not prefs['arrange']);win.set_keep_above(prefs['arrange']);win.set_accept_focus(prefs['arrange'])

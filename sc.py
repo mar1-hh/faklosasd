@@ -28,8 +28,11 @@ def run_events(controller,key,minutes=60,interval=30,enabled=lambda:True,wait=No
   if remaining>0:
    if wait(min(1,remaining)):return 'stopped'
    continue
-  try:controller.press(key)
-  finally:controller.release(key)
+  try:
+   if hasattr(controller,'pulse'):controller.pulse()
+   else:controller.press(key)
+  finally:
+   if not hasattr(controller,'pulse') and hasattr(controller,'release'):controller.release(key)
   print(time.strftime('%H:%M:%S'),'Keyboard event sent',flush=True)
   next_event=clock()+interval
  return 'disabled'
@@ -59,15 +62,16 @@ def main(argv=None):
    for variable in ('DISPLAY','XAUTHORITY','WAYLAND_DISPLAY','XDG_SESSION_TYPE'):
     if variable in session:os.environ[variable]=session[variable]
     else:os.environ.pop(variable,None)
-   from keep_awake_input import X11Keyboard
-   controller=X11Keyboard();key='shift'
+   from keep_awake_input import KeepAwakeController
+   method=load().get('keep_awake_method','mouse') if args.managed else 'mouse'
+   controller=KeepAwakeController(mode=method);key='shift'
    if args.managed and 'NEON_KEEP_AWAKE_UNTIL' in os.environ:
     resume=float(os.environ['NEON_KEEP_AWAKE_UNTIL'])
     if resume and resume<=time.time():return 0
     args.minutes=max(0,(resume-time.time())/60) if resume else 0
    started=time.time();ends=started+args.minutes*60 if args.minutes else None
-   write_status('running',pid=os.getpid(),started_at=started,ends_at=ends,backend='x11-keyboard',interval=args.interval)
-   print(f'Keep-awake: Shift every {args.interval} seconds · '+(f'{args.minutes:g} minutes' if args.minutes else 'until turned off'),flush=True)
+   write_status('running',pid=os.getpid(),started_at=started,ends_at=ends,backend=f'keep-awake-{method}',interval=args.interval,method=method)
+   print(f'Keep-awake ({method}): every {args.interval} seconds · '+(f'{args.minutes:g} minutes' if args.minutes else 'until turned off'),flush=True)
    result=run_events(controller,key,args.minutes,args.interval,enabled=lambda:not stopped.is_set() and (not args.managed or load()['keep_awake_enabled']),wait=stopped.wait,clock=time.monotonic)
    write_status(result);print('Keep-awake '+result+'.',flush=True)
    return 0

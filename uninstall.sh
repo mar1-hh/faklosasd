@@ -22,3 +22,4 @@ elif entry.exists() and any(str(root/name) in entry.read_text() for name in ('da
 PYCODE
 /usr/bin/python3 native_wallpaper.py disable
 /usr/bin/python3 configure.py uninstall
+rm -f "${HOME}/.local/bin/neon"

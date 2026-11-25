@@ -41,6 +41,11 @@ def stop_widgets():
   try:os.kill(pid,signal.SIGTERM)
   except ProcessLookupError:pass
  return 'Desktop widgets stopped.'
+def restart_widgets():
+ stop_widgets()
+ import time
+ time.sleep(0.3)
+ return start_widgets()
 def autostart_path():
  return Path(os.environ.get('XDG_CONFIG_HOME',str(Path.home()/'.config')))/'autostart/neon-dashboard.desktop'
 def autostart_enabled():

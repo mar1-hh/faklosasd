@@ -1,0 +1,380 @@
+#!/usr/bin/python3
+"""Neon Studio Unified CLI.
+
+Provides unified management for Neon Studio desktop widgets, keep-awake,
+wallpapers, caching, goinfre relocation, themes, and system controls.
+"""
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+
+from preferences import load as load_preferences, update as update_preferences, WIDGETS, ACCENTS
+from studio_backend import (
+    start_studio,
+    restart_widgets,
+    start_widgets,
+    stop_widgets,
+)
+import keep_awake
+from wallpaper_rotation import WallpaperRotationManager
+from native_wallpaper import NativeWallpaper
+from cache_cleaner import CacheCleaner, format_size
+from goinfre import find_goinfre_root, get_goinfre_status, relocate_directory, restore_directory
+from device_controls import SystemMetrics
+from theme_manager import ThemeManager
+from media_player import MediaPlayerManager
+
+
+def cmd_open(_args):
+    print(start_studio())
+
+
+def cmd_restart(_args):
+    print(restart_widgets())
+
+
+def cmd_status(args):
+    prefs = load_preferences()
+    metrics = SystemMetrics().get_metrics()
+    goinfre_path = str(find_goinfre_root() or "")
+
+    # Widget process status
+    widgets_running = False
+    widget_pid = None
+    lock_file = ROOT / "state/widgets.lock"
+    if lock_file.exists():
+        try:
+            pid = int(lock_file.read_text().strip())
+            if Path(f"/proc/{pid}").exists():
+                widgets_running = True
+                widget_pid = pid
+        except (ValueError, OSError):
+            pass
+
+    # Media status
+    media_info = {"active": False, "player": None, "title": None, "artist": None}
+    try:
+        mp = MediaPlayerManager()
+        track = mp.current_track
+        if track:
+            media_info = {
+                "active": True,
+                "player": mp.current_player,
+                "title": track.title,
+                "artist": track.artist,
+                "status": track.playback_status,
+            }
+        mp.close()
+    except Exception:
+        pass
+
+    # Caches estimate
+    cleaner = CacheCleaner()
+    cache_items = cleaner.scan()
+    total_cache_bytes = sum(c["size_bytes"] for c in cache_items)
+
+    status_data = {
+        "widgets": {
+            "running": widgets_running,
+            "pid": widget_pid,
+            "visible": [WIDGETS[k] for k, v in prefs.get("visible", {}).items() if v and k in WIDGETS],
+        },
+        "keep_awake": {
+            "enabled": prefs.get("keep_awake_enabled", True),
+            "method": prefs.get("keep_awake_method", "mouse"),
+            "status": keep_awake.status_text(),
+        },
+        "theme": {
+            "mode": prefs.get("theme_mode", "dark"),
+            "accent": prefs.get("accent", "Rose"),
+            "accent_color": prefs.get("accent_color", "#dfa1c6"),
+        },
+        "wallpaper": {
+            "active": prefs.get("active_wallpaper", ""),
+            "rotation_interval_hours": prefs.get("rotate_hours", 0),
+        },
+        "media": media_info,
+        "storage": {
+            "goinfre_detected": goinfre_path is not None,
+            "goinfre_path": goinfre_path,
+            "cleanable_cache_bytes": total_cache_bytes,
+            "cleanable_cache_human": format_size(total_cache_bytes),
+        },
+        "system": metrics,
+    }
+
+    if args.json:
+        print(json.dumps(status_data, indent=2))
+        return
+
+    print("═════════════════════════════════════════════════")
+    print("               NEON STUDIO STATUS                ")
+    print("═════════════════════════════════════════════════")
+    w_str = f"Running (PID: {widget_pid})" if widgets_running else "Stopped"
+    print(f"Widgets:      {w_str}")
+    print(f"Active Cards: {', '.join(status_data['widgets']['visible']) or 'None'}")
+    print(f"Keep-Awake:   {status_data['keep_awake']['status']} (mode: {status_data['keep_awake']['method']})")
+    print(f"Theme:        {status_data['theme']['mode'].title()} (Accent: {status_data['theme']['accent']})")
+    print(f"Wallpaper:    {os.path.basename(status_data['wallpaper']['active']) or 'Default'}")
+    if media_info["active"]:
+        print(f"Now Playing:  {media_info['title']} - {media_info['artist']} [{media_info['status']}]")
+    else:
+        print("Now Playing:  No active player")
+    print("─────────────────────────────────────────────────")
+    print(f"RAM Usage:    {metrics['ram_pct']:.1f}%")
+    print(f"1m Load:      {metrics['load_1m']}")
+    print(f"Disk (Home):  {metrics['disk_free_gb']:.1f} GB free ({metrics['disk_pct']:.1f}% used)")
+    print(f"Goinfre:      {goinfre_path if goinfre_path else 'Not available on this workstation'}")
+    print(f"Caches:       {format_size(total_cache_bytes)} recoverable space")
+    print("═════════════════════════════════════════════════")
+
+
+def cmd_wallpaper(args):
+    rotator = WallpaperRotationManager()
+    if args.action == "next":
+        path = rotator.next_wallpaper()
+        print(f"Wallpaper set to: {os.path.basename(path) if path else 'None'}")
+    elif args.action == "prev":
+        path = rotator.prev_wallpaper()
+        print(f"Wallpaper set to: {os.path.basename(path) if path else 'None'}")
+    elif args.action == "set":
+        if not args.path:
+            print("Error: Specify a wallpaper image path.", file=sys.stderr)
+            sys.exit(1)
+        p = Path(args.path).resolve()
+        if not p.is_file():
+            print(f"Error: File not found: {p}", file=sys.stderr)
+            sys.exit(1)
+        NativeWallpaper().apply(str(p))
+        update_preferences({"active_wallpaper": str(p)})
+        rotator.record_history(str(p))
+        print(f"Active wallpaper updated: {p.name}")
+    elif args.action == "favorite":
+        prefs = load_preferences()
+        current = prefs.get("active_wallpaper")
+        if not current:
+            print("No active wallpaper to favorite.")
+            return
+        is_fav = rotator.toggle_favorite(current)
+        print(f"{'Added to' if is_fav else 'Removed from'} favorites: {os.path.basename(current)}")
+
+
+def cmd_awake(args):
+    prefs = load_preferences()
+    if args.action == "status":
+        print(f"Keep-Awake status: {keep_awake.status_text()} (mode: {prefs.get('keep_awake_method', 'mouse')})")
+    elif args.action == "on":
+        update_preferences({"keep_awake_enabled": True})
+        print(keep_awake.start())
+    elif args.action == "off":
+        update_preferences({"keep_awake_enabled": False})
+        print(keep_awake.disable())
+    elif args.action == "mode":
+        if not args.value:
+            print(f"Current keep-awake mode: {prefs.get('keep_awake_method', 'mouse')}")
+            return
+        if args.value not in ("mouse", "inhibit", "shift"):
+            print("Error: mode must be 'mouse', 'inhibit', or 'shift'", file=sys.stderr)
+            sys.exit(1)
+        update_preferences({"keep_awake_method": args.value})
+        print(keep_awake.start())
+    elif args.action == "set":
+        try:
+            mins = int(args.value)
+            print(keep_awake.set_minutes(mins))
+        except ValueError:
+            print("Error: minutes must be an integer", file=sys.stderr)
+            sys.exit(1)
+
+
+def cmd_clean(args):
+    cleaner = CacheCleaner()
+    targets = cleaner.scan()
+    total_bytes = sum(t["size_bytes"] for t in targets)
+
+    print(f"Discovered {len(targets)} cache targets ({format_size(total_bytes)} estimated):")
+    for t in targets:
+        active_flag = " [Process Active - Skipped]" if t["is_running"] else ""
+        print(f"  • {t['description']:<24} {t['size_display']:>10}  ({t['path']}){active_flag}")
+
+    if args.apply:
+        eligible = [t["path"] for t in targets if t["eligible"]]
+        if not eligible:
+            print("\nNo eligible caches to clean (either empty or processes active).")
+            return
+        print("\nCleaning safe caches…")
+        freed, errors = cleaner.clean(eligible)
+        print(f"Successfully recovered: {format_size(freed)}")
+        for err in errors:
+            print(f"  Warning: {err}")
+    else:
+        print("\nDry run. Use `neon clean --apply` to delete these caches.")
+
+
+def cmd_widgets(args):
+    prefs = load_preferences()
+    visible = prefs.get("visible", {})
+
+    if args.action == "list":
+        print("Neon Studio Desktop Widgets:")
+        for key, title in WIDGETS.items():
+            vis = "✓ VISIBLE" if visible.get(key, True) else "  HIDDEN"
+            print(f"  [{vis}] {key:<12} ({title})")
+    elif args.action == "show":
+        if args.name not in WIDGETS:
+            print(f"Unknown widget '{args.name}'. Available: {', '.join(WIDGETS.keys())}")
+            sys.exit(1)
+        visible[args.name] = True
+        update_preferences({"visible": visible})
+        print(f"Widget '{args.name}' set to VISIBLE.")
+    elif args.action == "hide":
+        if args.name not in WIDGETS:
+            print(f"Unknown widget '{args.name}'. Available: {', '.join(WIDGETS.keys())}")
+            sys.exit(1)
+        visible[args.name] = False
+        update_preferences({"visible": visible})
+        print(f"Widget '{args.name}' set to HIDDEN.")
+    elif args.action == "toggle":
+        if args.name not in WIDGETS:
+            print(f"Unknown widget '{args.name}'. Available: {', '.join(WIDGETS.keys())}")
+            sys.exit(1)
+        cur = visible.get(args.name, True)
+        visible[args.name] = not cur
+        update_preferences({"visible": visible})
+        print(f"Widget '{args.name}' is now {'VISIBLE' if visible[args.name] else 'HIDDEN'}.")
+    elif args.action == "reset":
+        update_preferences({"positions": {}, "widget_scales": {}})
+        print("Reset all widget positions and custom scales to defaults.")
+
+
+def cmd_theme(args):
+    from preferences import effective_accent
+    tm = ThemeManager()
+    if args.action in ("dark", "light", "auto"):
+        update_preferences({"theme_mode": args.action})
+        prefs = load_preferences()
+        resolved = tm.resolve_mode(args.action)
+        accent_hex = effective_accent(prefs)
+        pal = tm.build_palette(accent_hex, resolved)
+        tm.execute_hooks(pal, prefs.get("active_wallpaper", ""))
+        print(f"Applied {args.action} theme mode (resolved: {resolved}).")
+    elif args.action == "accent":
+        if not args.value:
+            print(f"Available accents: {', '.join(ACCENTS.keys())}")
+            return
+        accent_name = args.value.title()
+        if accent_name not in ACCENTS:
+            print(f"Unknown accent '{args.value}'. Available: {', '.join(ACCENTS.keys())}")
+            sys.exit(1)
+        update_preferences({"accent": accent_name, "accent_color": ACCENTS[accent_name], "auto_accent": False})
+        prefs = load_preferences()
+        pal = tm.build_palette(ACCENTS[accent_name], tm.resolve_mode(prefs.get("theme_mode", "dark")))
+        tm.execute_hooks(pal, prefs.get("active_wallpaper", ""))
+        print(f"Applied accent: {accent_name} ({ACCENTS[accent_name]})")
+
+
+def cmd_goinfre(args):
+    goinfre_path = find_goinfre_root()
+    if not goinfre_path:
+        print("Goinfre campus storage path is not available on this workstation.")
+        return
+
+    print(f"Workstation Goinfre path: {goinfre_path}")
+    if args.action == "status":
+        for item in ("anime_pack", "vscode", "caches"):
+            orig = ROOT / ("anime" if item == "anime_pack" else item)
+            is_link = orig.is_symlink()
+            target = orig.resolve() if is_link else None
+            status = f"Relocated -> {target}" if is_link else "Local (in home)"
+            print(f"  • {item:<12}: {status}")
+    elif args.action == "relocate":
+        if not args.target:
+            print("Specify target to relocate: 'anime_pack', 'vscode', or 'caches'")
+            sys.exit(1)
+        target_dir = ROOT / ("anime" if args.target == "anime_pack" else args.target)
+        dest_dir = Path(goinfre_path) / "neon_studio" / args.target
+        ok, msg = relocate_directory(str(target_dir), str(dest_dir))
+        print(msg)
+    elif args.action == "rollback":
+        if not args.target:
+            print("Specify target to rollback: 'anime_pack', 'vscode', or 'caches'")
+            sys.exit(1)
+        target_dir = ROOT / ("anime" if args.target == "anime_pack" else args.target)
+        ok, msg = restore_directory(target_dir)
+        print(msg)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="neon",
+        description="Unified management CLI for Neon Studio desktop and campus workstation tools.",
+    )
+    sub = parser.add_subparsers(dest="subcommand", help="Available subcommands")
+
+    # open
+    sub.add_parser("open", help="Launch Neon Studio Control Center")
+
+    # restart
+    sub.add_parser("restart", help="Restart desktop widget overlay cards")
+
+    # status
+    p_status = sub.add_parser("status", help="Display full workstation and Neon Studio status")
+    p_status.add_argument("--json", action="store_true", help="Output in machine-readable JSON")
+
+    # wallpaper
+    p_wall = sub.add_parser("wallpaper", help="Manage desktop wallpaper and rotation")
+    p_wall.add_argument("action", choices=["next", "prev", "set", "favorite"], help="Wallpaper action")
+    p_wall.add_argument("path", nargs="?", default="", help="Path to wallpaper image (for 'set')")
+
+    # awake
+    p_awake = sub.add_parser("awake", help="Control keep-awake idle inhibitor")
+    p_awake.add_argument("action", choices=["on", "off", "mode", "set", "status"], help="Action")
+    p_awake.add_argument("value", nargs="?", default="", help="Method ('mouse', 'inhibit', 'shift') or minutes")
+
+    # clean
+    p_clean = sub.add_parser("clean", help="Safe campus cache cleaner")
+    p_clean.add_argument("--scan", action="store_true", help="Scan only (default behavior)")
+    p_clean.add_argument("--apply", action="store_true", help="Delete cache files and recover space")
+
+    # widgets
+    p_wid = sub.add_parser("widgets", help="Manage desktop widget visibility and layouts")
+    p_wid.add_argument("action", choices=["list", "show", "hide", "toggle", "reset"], help="Action")
+    p_wid.add_argument("name", nargs="?", default="", help="Widget identifier (e.g. media, search, logtime)")
+
+    # theme
+    p_theme = sub.add_parser("theme", help="Manage themes and accent colors")
+    p_theme.add_argument("action", choices=["dark", "light", "auto", "accent"], help="Action")
+    p_theme.add_argument("value", nargs="?", default="", help="Accent name (e.g. Rose, Teal, Violet)")
+
+    # goinfre
+    p_goin = sub.add_parser("goinfre", help="Campus Goinfre storage management")
+    p_goin.add_argument("action", choices=["status", "relocate", "rollback"], help="Action")
+    p_goin.add_argument("target", nargs="?", default="", help="Target ('anime_pack', 'vscode', 'caches')")
+
+    args = parser.parse_args()
+    if not args.subcommand:
+        parser.print_help()
+        return
+
+    cmds = {
+        "open": cmd_open,
+        "restart": cmd_restart,
+        "status": cmd_status,
+        "wallpaper": cmd_wallpaper,
+        "awake": cmd_awake,
+        "clean": cmd_clean,
+        "widgets": cmd_widgets,
+        "theme": cmd_theme,
+        "goinfre": cmd_goinfre,
+    }
+    cmds[args.subcommand](args)
+
+
+if __name__ == "__main__":
+    main()
